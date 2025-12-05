@@ -1,0 +1,32 @@
+# Quick Deployment Commands
+
+# 1. Initialize Git Repository
+cd streamlit-deploy
+git init
+git add .
+git commit -m "Initial commit - Elbitat Social Agent for Streamlit"
+
+# 2. Create GitHub Repository
+# Go to https://github.com/new
+# Create a new repository (e.g., "elbitat-streamlit-app")
+# DO NOT initialize with README (we already have one)
+
+# 3. Push to GitHub
+git remote add origin https://github.com/YOUR_USERNAME/elbitat-streamlit-app.git
+git branch -M main
+git push -u origin main
+
+# 4. Deploy to Streamlit Cloud
+# Go to https://share.streamlit.io/
+# Click "New app"
+# Select your repository
+# Set main file: streamlit_app.py
+# Click "Deploy"
+
+# 5. Configure Secrets
+# In Streamlit Cloud app settings, add secrets from secrets.toml.example
+
+# 6. Change Passwords
+# Log in to your deployed app
+# Go to Settings > Change Password
+# Change passwords for all users

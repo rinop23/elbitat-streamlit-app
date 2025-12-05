@@ -1,0 +1,19 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+
+# Streamlit secrets and credentials (SECURITY)
+.streamlit/secrets.toml
+.streamlit/credentials.yaml
+
+# Keep example and config files
+!.streamlit/secrets.toml.example
+!.streamlit/config.toml
+
+# Logs and temp files
+*.log
+.vscode/
+*.swp
+*~
+.DS_Store
