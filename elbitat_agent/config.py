@@ -1,6 +1,7 @@
 """Configuration for social media API credentials.
 
 Set these environment variables or create a .env file:
+- OPENAI_API_KEY: Your OpenAI API key for content generation
 - META_ACCESS_TOKEN: Your Meta (Facebook/Instagram) access token
 - META_PAGE_ID: Your Facebook Page ID
 - META_INSTAGRAM_ACCOUNT_ID: Your Instagram Business Account ID
@@ -19,6 +20,9 @@ from pathlib import Path
 class SocialMediaConfig:
     """Configuration for social media API access."""
     
+    # OpenAI for content generation
+    openai_api_key: str | None = None
+    
     # Meta (Facebook/Instagram)
     meta_access_token: str | None = None
     meta_page_id: str | None = None
@@ -33,6 +37,7 @@ class SocialMediaConfig:
     def from_env(cls) -> "SocialMediaConfig":
         """Load configuration from environment variables."""
         return cls(
+            openai_api_key=os.getenv("OPENAI_API_KEY"),
             meta_access_token=os.getenv("META_ACCESS_TOKEN"),
             meta_page_id=os.getenv("META_PAGE_ID"),
             meta_instagram_account_id=os.getenv("META_INSTAGRAM_ACCOUNT_ID"),
