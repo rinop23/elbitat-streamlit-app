@@ -293,9 +293,9 @@ def show_chat_page():
                 st.success(f"✅ Campaign created! Generated {len(drafts)} draft(s).")
                 st.info("Go to 'Drafts' page to review and approve your content.")
                 
-                if st.button("📝 Review Drafts Now"):
-                    st.session_state['page'] = 'drafts'
-                    st.rerun()
+                # Automatically navigate to drafts page
+                st.session_state['page'] = 'drafts'
+                st.rerun()
 
 
 def show_drafts_page():
