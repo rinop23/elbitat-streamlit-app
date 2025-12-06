@@ -487,22 +487,30 @@ def show_draft_detail_modal():
                 
                 if available_images:
                     st.write(f"**Available: {len(available_images)} images**")
-                    st.write(f"**Selected: {len(st.session_state[f'temp_selected_{draft_name}'])} images**")
                     
-                    # Display images with checkboxes
+                    # Display images with checkboxes in a grid
                     cols = st.columns(4)
                     
+                    # Collect checkbox states
                     for idx, img_path in enumerate(available_images[:20]):  # Show first 20
                         img_str = str(img_path)
                         with cols[idx % 4]:
                             st.image(img_str, use_container_width=True)
+                            # Check if this image is currently selected
                             is_selected = img_str in st.session_state[f'temp_selected_{draft_name}']
-                            if st.checkbox(f"Select", key=f"sel_{draft_name}_{idx}", value=is_selected):
-                                if img_str not in st.session_state[f'temp_selected_{draft_name}']:
-                                    st.session_state[f'temp_selected_{draft_name}'].append(img_str)
-                            else:
-                                if img_str in st.session_state[f'temp_selected_{draft_name}']:
-                                    st.session_state[f'temp_selected_{draft_name}'].remove(img_str)
+                            # Create checkbox and update selection list based on its value
+                            checkbox_value = st.checkbox(
+                                f"Select", 
+                                key=f"sel_{draft_name}_{category}_{idx}",
+                                value=is_selected
+                            )
+                            # Update selection list after all checkboxes are rendered
+                            if checkbox_value and img_str not in st.session_state[f'temp_selected_{draft_name}']:
+                                st.session_state[f'temp_selected_{draft_name}'].append(img_str)
+                            elif not checkbox_value and img_str in st.session_state[f'temp_selected_{draft_name}']:
+                                st.session_state[f'temp_selected_{draft_name}'].remove(img_str)
+                    
+                    st.write(f"**Currently selected: {len(st.session_state[f'temp_selected_{draft_name}'])} images**")
                     
                     col_apply, col_cancel = st.columns(2)
                     with col_apply:
