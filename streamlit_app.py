@@ -188,7 +188,6 @@ def show_dashboard():
     with col1:
         if st.button("💬 Create Campaign", use_container_width=True):
             st.session_state['page'] = 'chat'
-            st.session_state['page_selector'] = 'Chat'
             st.rerun()
     
     with col2:
@@ -197,13 +196,11 @@ def show_dashboard():
                 drafts = generate_drafts_for_all_requests()
                 st.success(f"Generated {len(drafts)} draft(s)!")
                 st.session_state['page'] = 'drafts'
-                st.session_state['page_selector'] = 'Drafts'
                 st.rerun()
     
     with col3:
         if st.button("📝 Review Drafts", use_container_width=True):
             st.session_state['page'] = 'drafts'
-            st.session_state['page_selector'] = 'Drafts'
             st.rerun()
     
     # Recent activity
@@ -304,7 +301,6 @@ def show_chat_page():
                             
                             # Automatically navigate to drafts page only if drafts were created
                             st.session_state['page'] = 'drafts'
-                            st.session_state['page_selector'] = 'Drafts'
                             st.rerun()
                     except Exception as e:
                         st.error(f"❌ Error generating drafts: {str(e)}")
@@ -332,7 +328,6 @@ def show_drafts_page():
         st.info("No drafts available. Create a campaign first!")
         if st.button("💬 Create Campaign"):
             st.session_state['page'] = 'chat'
-            st.session_state['page_selector'] = 'Chat'
             st.rerun()
         return
     
@@ -624,7 +619,6 @@ def show_schedule_page():
         st.info("No scheduled posts yet. Approve drafts to schedule them.")
         if st.button("📝 Review Drafts"):
             st.session_state['page'] = 'drafts'
-            st.session_state['page_selector'] = 'Drafts'
             st.rerun()
         return
     
@@ -981,9 +975,20 @@ def main():
         
         st.subheader("Navigation")
         
+        # Get current page and convert to title case for radio button
+        current_page = st.session_state.get('page', 'dashboard')
+        page_options = ["Dashboard", "Chat", "Drafts", "Schedule", "Settings"]
+        
+        # Find the index of the current page
+        try:
+            default_index = page_options.index(current_page.title())
+        except ValueError:
+            default_index = 0
+        
         page = st.radio(
             "Go to:",
-            ["Dashboard", "Chat", "Drafts", "Schedule", "Settings"],
+            page_options,
+            index=default_index,
             key="page_selector"
         )
         
