@@ -417,19 +417,114 @@ def show_draft_detail_modal():
             st.info("No images selected")
     
     with col_right:
-        # Platform-specific content
+        # Edit mode toggle
+        edit_mode = st.checkbox("✏️ Edit Mode", key=f"edit_mode_{draft_name}")
+        
+        if edit_mode:
+            st.info("💬 **AI Assistant:** Tell me what you'd like to change about the content or images!")
+            
+            # AI conversation for edits
+            user_feedback = st.text_area(
+                "What would you like to change?",
+                placeholder="e.g., 'Make the Facebook post more engaging' or 'Change images to sunset views'",
+                height=100,
+                key=f"feedback_{draft_name}"
+            )
+            
+            col_a, col_b = st.columns(2)
+            with col_a:
+                if st.button("🔄 Regenerate Content", key=f"regen_{draft_name}", use_container_width=True):
+                    if user_feedback:
+                        with st.spinner("🎨 Regenerating content with AI..."):
+                            # Import here to avoid circular import
+                            from elbitat_agent.agents.creative_agent import generate_ai_content
+                            from elbitat_agent.models import AdRequest
+                            
+                            # Create updated request with feedback
+                            updated_request = AdRequest.from_dict(request)
+                            updated_request.brief = f"{request['brief']}\n\nADDITIONAL INSTRUCTIONS: {user_feedback}"
+                            
+                            try:
+                                new_copy = generate_ai_content(updated_request)
+                                draft_data['copy_by_platform'] = new_copy
+                                
+                                # Save updated draft
+                                with open(draft_file, 'w', encoding='utf-8') as f:
+                                    json.dump(draft_data, f, indent=2, ensure_ascii=False)
+                                
+                                st.success("✅ Content regenerated!")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Error regenerating content: {str(e)}")
+                    else:
+                        st.warning("Please provide feedback on what to change")
+            
+            with col_b:
+                if st.button("🖼️ Change Images", key=f"img_{draft_name}", use_container_width=True):
+                    st.session_state[f'show_image_selector_{draft_name}'] = True
+                    st.rerun()
+            
+            # Image selector modal
+            if st.session_state.get(f'show_image_selector_{draft_name}'):
+                st.divider()
+                st.subheader("📁 Select New Images")
+                
+                from elbitat_agent.media_selector import list_media_files
+                
+                # Category selector
+                category = st.selectbox(
+                    "Category",
+                    ["All", "Elbitat", "Sunset"],
+                    key=f"cat_select_{draft_name}"
+                )
+                
+                available_images = list_media_files(None if category == "All" else category)
+                
+                if available_images:
+                    st.write(f"**Available: {len(available_images)} images**")
+                    
+                    # Display images with checkboxes
+                    cols = st.columns(4)
+                    selected_new_images = []
+                    
+                    for idx, img_path in enumerate(available_images[:20]):  # Show first 20
+                        with cols[idx % 4]:
+                            st.image(str(img_path), use_container_width=True)
+                            if st.checkbox(f"Select", key=f"sel_{draft_name}_{idx}"):
+                                selected_new_images.append(str(img_path))
+                    
+                    if st.button("✅ Apply Selected Images", key=f"apply_img_{draft_name}"):
+                        if selected_new_images:
+                            draft_data['selected_images'] = selected_new_images
+                            
+                            # Save updated draft
+                            with open(draft_file, 'w', encoding='utf-8') as f:
+                                json.dump(draft_data, f, indent=2, ensure_ascii=False)
+                            
+                            st.success(f"✅ Updated with {len(selected_new_images)} images!")
+                            st.session_state[f'show_image_selector_{draft_name}'] = False
+                            st.rerun()
+                        else:
+                            st.warning("Please select at least one image")
+                else:
+                    st.warning("No images available in this category")
+        
+        # Platform-specific content (always visible)
+        st.divider()
         if 'instagram' in copy_by_platform:
             st.subheader("📷 Instagram")
             st.text_area(
                 "Caption",
                 copy_by_platform['instagram']['caption'],
                 height=150,
-                key="ig_caption"
+                key="ig_caption",
+                disabled=not edit_mode
             )
             st.text_input(
                 "Hashtags",
                 copy_by_platform['instagram']['hashtags'],
-                key="ig_hashtags"
+                key="ig_hashtags",
+                disabled=not edit_mode
             )
         
         if 'facebook' in copy_by_platform:
@@ -438,7 +533,8 @@ def show_draft_detail_modal():
                 "Message",
                 copy_by_platform['facebook']['message'],
                 height=150,
-                key="fb_message"
+                key="fb_message",
+                disabled=not edit_mode
             )
         
         if 'tiktok' in copy_by_platform:
@@ -446,13 +542,15 @@ def show_draft_detail_modal():
             st.text_input(
                 "Caption",
                 copy_by_platform['tiktok']['caption'],
-                key="tt_caption"
+                key="tt_caption",
+                disabled=not edit_mode
             )
             st.text_area(
                 "Script",
                 copy_by_platform['tiktok'].get('script', ''),
                 height=100,
-                key="tt_script"
+                key="tt_script",
+                disabled=not edit_mode
             )
     
     # Action buttons

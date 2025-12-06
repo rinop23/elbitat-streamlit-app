@@ -88,9 +88,11 @@ def select_images_for_ad(
     # Determine which category to prioritize based on brief keywords
     if prefer_category:
         primary_category = prefer_category
-    elif any(word in brief_lower for word in ['sunset', 'romantic', 'evening', 'view', 'panorama']):
+    elif any(word in brief_lower for word in ['sunset', 'romantic', 'evening', 'view', 'panorama', 'vista']):
         primary_category = "Sunset"
-    elif any(word in brief_lower for word in ['hotel', 'room', 'property', 'facility', 'amenity']):
+    elif any(word in brief_lower for word in ['yoga', 'wellness', 'spa', 'relaxation', 'meditation', 'retreat', 
+                                               'hotel', 'room', 'property', 'facility', 'amenity', 
+                                               'pool', 'terrace', 'restaurant', 'suite']):
         primary_category = "Elbitat"
     else:
         # Mix from both categories
