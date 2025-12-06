@@ -509,8 +509,8 @@ def show_draft_detail_modal():
                         if st.button("✅ Apply Selected Images", key=f"apply_img_{draft_name}", use_container_width=True):
                             selected_new_images = st.session_state[f'temp_selected_{draft_name}']
                             if selected_new_images:
-                            draft_data['selected_images'] = selected_new_images
-                            
+                                draft_data['selected_images'] = selected_new_images
+                                
                                 # Save updated draft
                                 with open(draft_file, 'w', encoding='utf-8') as f:
                                     json.dump(draft_data, f, indent=2, ensure_ascii=False)
