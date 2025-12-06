@@ -472,6 +472,10 @@ def show_draft_detail_modal():
                 
                 from elbitat_agent.media_selector import list_media_files
                 
+                # Initialize selected images in session state
+                if f'temp_selected_{draft_name}' not in st.session_state:
+                    st.session_state[f'temp_selected_{draft_name}'] = []
+                
                 # Category selector
                 category = st.selectbox(
                     "Category",
@@ -483,30 +487,46 @@ def show_draft_detail_modal():
                 
                 if available_images:
                     st.write(f"**Available: {len(available_images)} images**")
+                    st.write(f"**Selected: {len(st.session_state[f'temp_selected_{draft_name}'])} images**")
                     
                     # Display images with checkboxes
                     cols = st.columns(4)
-                    selected_new_images = []
                     
                     for idx, img_path in enumerate(available_images[:20]):  # Show first 20
+                        img_str = str(img_path)
                         with cols[idx % 4]:
-                            st.image(str(img_path), use_container_width=True)
-                            if st.checkbox(f"Select", key=f"sel_{draft_name}_{idx}"):
-                                selected_new_images.append(str(img_path))
+                            st.image(img_str, use_container_width=True)
+                            is_selected = img_str in st.session_state[f'temp_selected_{draft_name}']
+                            if st.checkbox(f"Select", key=f"sel_{draft_name}_{idx}", value=is_selected):
+                                if img_str not in st.session_state[f'temp_selected_{draft_name}']:
+                                    st.session_state[f'temp_selected_{draft_name}'].append(img_str)
+                            else:
+                                if img_str in st.session_state[f'temp_selected_{draft_name}']:
+                                    st.session_state[f'temp_selected_{draft_name}'].remove(img_str)
                     
-                    if st.button("✅ Apply Selected Images", key=f"apply_img_{draft_name}"):
-                        if selected_new_images:
+                    col_apply, col_cancel = st.columns(2)
+                    with col_apply:
+                        if st.button("✅ Apply Selected Images", key=f"apply_img_{draft_name}", use_container_width=True):
+                            selected_new_images = st.session_state[f'temp_selected_{draft_name}']
+                            if selected_new_images:
                             draft_data['selected_images'] = selected_new_images
                             
-                            # Save updated draft
-                            with open(draft_file, 'w', encoding='utf-8') as f:
-                                json.dump(draft_data, f, indent=2, ensure_ascii=False)
-                            
-                            st.success(f"✅ Updated with {len(selected_new_images)} images!")
+                                # Save updated draft
+                                with open(draft_file, 'w', encoding='utf-8') as f:
+                                    json.dump(draft_data, f, indent=2, ensure_ascii=False)
+                                
+                                st.success(f"✅ Updated with {len(selected_new_images)} images!")
+                                st.session_state[f'show_image_selector_{draft_name}'] = False
+                                st.session_state[f'temp_selected_{draft_name}'] = []  # Clear temp selection
+                                st.rerun()
+                            else:
+                                st.warning("Please select at least one image")
+                    
+                    with col_cancel:
+                        if st.button("❌ Cancel", key=f"cancel_img_{draft_name}", use_container_width=True):
                             st.session_state[f'show_image_selector_{draft_name}'] = False
+                            st.session_state[f'temp_selected_{draft_name}'] = []
                             st.rerun()
-                        else:
-                            st.warning("Please select at least one image")
                 else:
                     st.warning("No images available in this category")
         
