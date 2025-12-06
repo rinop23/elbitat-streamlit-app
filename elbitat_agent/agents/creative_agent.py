@@ -12,10 +12,22 @@ def generate_ai_content(request: AdRequest) -> Dict[str, Dict[str, str]]:
     try:
         from openai import OpenAI
         
-        api_key = os.getenv("OPENAI_API_KEY")
-        if not api_key:
-            raise ValueError("OPENAI_API_KEY not found in environment variables")
+        # Try to get API key from Streamlit secrets first, then environment
+        api_key = None
+        try:
+            import streamlit as st
+            if hasattr(st, 'secrets') and 'OPENAI_API_KEY' in st.secrets:
+                api_key = st.secrets["OPENAI_API_KEY"]
+        except:
+            pass
         
+        if not api_key:
+            api_key = os.getenv("OPENAI_API_KEY")
+        
+        if not api_key:
+            raise ValueError("OPENAI_API_KEY not found in secrets or environment variables")
+        
+        print(f"✅ Using OpenAI API (key starts with: {api_key[:15]}...)")
         client = OpenAI(api_key=api_key)
         
         # Build prompt based on platforms
@@ -58,26 +70,35 @@ Make the content compelling, authentic, and aligned with the campaign goal of "{
         )
         
         ai_content = response.choices[0].message.content
+        print(f"📝 AI Generated Content:\n{ai_content[:200]}...\n")
         
         # Parse the AI response into structured format
         copy: Dict[str, Dict[str, str]] = {}
         
         if "instagram" in request.platforms:
             copy["instagram"] = parse_instagram_content(ai_content, request)
+            print(f"✅ Instagram parsed: {copy['instagram']['caption'][:50]}...")
         
         if "facebook" in request.platforms:
             copy["facebook"] = parse_facebook_content(ai_content, request)
+            print(f"✅ Facebook parsed: {copy['facebook']['message'][:50]}...")
         
         if "tiktok" in request.platforms:
             copy["tiktok"] = parse_tiktok_content(ai_content, request)
+            print(f"✅ TikTok parsed: {copy['tiktok']['caption'][:30]}...")
         
         return copy
         
-    except ImportError:
-        print("OpenAI library not installed. Using placeholder content.")
+    except ImportError as e:
+        print(f"⚠️ OpenAI library not installed: {e}. Using placeholder content.")
+        return generate_placeholder_content(request)
+    except ValueError as e:
+        print(f"⚠️ OpenAI API key issue: {e}. Using placeholder content.")
         return generate_placeholder_content(request)
     except Exception as e:
-        print(f"Error generating AI content: {e}. Using placeholder content.")
+        print(f"⚠️ Error generating AI content: {e}. Using placeholder content.")
+        import traceback
+        traceback.print_exc()
         return generate_placeholder_content(request)
 
 
@@ -119,18 +140,42 @@ def parse_facebook_content(ai_content: str, request: AdRequest) -> Dict[str, str
     lines = ai_content.split('\n')
     message = ""
     
+    # Try to find Facebook section
+    fb_start = -1
     for i, line in enumerate(lines):
-        if 'facebook' in line.lower() and 'message' in line.lower():
-            # Get next few lines as message
-            message_lines = []
-            for j in range(i + 1, min(i + 6, len(lines))):
-                if lines[j].strip() and 'tiktok' not in lines[j].lower() and not lines[j].strip().startswith('#'):
-                    message_lines.append(lines[j].strip())
-            message = ' '.join(message_lines)
+        if 'facebook' in line.lower():
+            fb_start = i
             break
     
-    if not message:
-        message = f"{request.title}\n\n{request.brief}\n\nBook your stay at Elbitat Hotel on Elba Island."
+    if fb_start >= 0:
+        # Get lines after Facebook header until next platform or end
+        message_lines = []
+        for j in range(fb_start + 1, len(lines)):
+            line = lines[j].strip()
+            # Stop at next platform section
+            if any(platform in line.lower() for platform in ['instagram', 'tiktok']) and ':' in line:
+                break
+            # Skip labels like "Message:" or "Caption:"
+            if line and not line.endswith(':') and not line.startswith('**'):
+                # Remove label if present (e.g., "Message: text" -> "text")
+                if ':' in line and len(line.split(':', 1)[0]) < 20:
+                    line = line.split(':', 1)[1].strip()
+                if line and not line.startswith('#'):
+                    message_lines.append(line)
+        
+        message = '\n'.join(message_lines).strip()
+    
+    if not message or len(message) < 20:
+        # Fallback: use entire content if no clear structure
+        message = ai_content.strip()
+        # Remove any platform labels
+        for label in ['Instagram:', 'Facebook:', 'TikTok:', '**Instagram**', '**Facebook**', '**TikTok**']:
+            message = message.replace(label, '')
+        message = message.strip()
+        
+        # If still nothing useful, use request brief
+        if len(message) < 20:
+            message = f"{request.title}\n\n{request.brief}\n\nBook your stay at Elbitat Hotel on Elba Island."
     
     return {"message": message}
 
