@@ -288,14 +288,26 @@ def show_chat_page():
                 
                 # Generate drafts
                 with st.spinner("🎨 Generating campaign with AI..."):
-                    drafts = generate_drafts_for_all_requests()
-                
-                st.success(f"✅ Campaign created! Generated {len(drafts)} draft(s).")
-                st.info("Go to 'Drafts' page to review and approve your content.")
-                
-                # Automatically navigate to drafts page
-                st.session_state['page'] = 'drafts'
-                st.rerun()
+                    try:
+                        drafts = generate_drafts_for_all_requests()
+                        
+                        if len(drafts) == 0:
+                            st.warning("⚠️ Campaign request saved, but no drafts were generated. Check that the request was saved correctly.")
+                            st.write("**Saved request location:**", str(request_file))
+                        else:
+                            st.success(f"✅ Campaign created! Generated {len(drafts)} draft(s).")
+                            st.info("Go to 'Drafts' page to review and approve your content.")
+                            
+                            # Automatically navigate to drafts page only if drafts were created
+                            st.session_state['page'] = 'drafts'
+                            st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Error generating drafts: {str(e)}")
+                        st.write("**Request was saved to:**", str(request_file))
+                        st.write("**Error details:**")
+                        st.code(str(e))
+                        import traceback
+                        st.code(traceback.format_exc())
 
 
 def show_drafts_page():
