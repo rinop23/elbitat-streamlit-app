@@ -1207,11 +1207,11 @@ def main():
         except (ValueError, AttributeError):
             default_index = 0
         
+        # Remove key to allow session state to control the selection
         page = st.radio(
             "Go to:",
             page_options,
-            index=default_index,
-            key="page_selector"
+            index=default_index
         )
         
         # Update session state page using dot notation
