@@ -69,14 +69,25 @@ st.markdown("""
 
 # Authentication Configuration
 def load_auth_config():
-    """Load authentication configuration from YAML file."""
-    config_file = Path(__file__).parent / ".streamlit" / "credentials.yaml"
+    """Load authentication configuration from Streamlit secrets or YAML file."""
+    # Try loading from Streamlit secrets first (for cloud deployment)
+    if hasattr(st, 'secrets') and 'credentials' in st.secrets:
+        return {
+            'credentials': dict(st.secrets['credentials']),
+            'cookie': {
+                'expiry_days': 30,
+                'key': 'elbitat_social_agent_cookie',
+                'name': 'elbitat_auth_cookie'
+            }
+        }
     
+    # Try loading from YAML file (for local development)
+    config_file = Path(__file__).parent / ".streamlit" / "credentials.yaml"
     if config_file.exists():
         with open(config_file) as file:
             return yaml.load(file, Loader=SafeLoader)
     
-    # Default configuration if file doesn't exist
+    # Default configuration if neither exists
     return {
         'credentials': {
             'usernames': {
