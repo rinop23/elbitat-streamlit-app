@@ -13,7 +13,7 @@ from __future__ import annotations
 import streamlit as st
 import streamlit_authenticator as stauth
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 import yaml
 from yaml.loader import SafeLoader
@@ -245,6 +245,14 @@ def show_chat_page():
     """Display chat interface for campaign creation."""
     st.markdown('<p class="main-header">💬 Create Campaign</p>', unsafe_allow_html=True)
     
+    # Campaign type selector
+    campaign_type = st.radio(
+        "Campaign Type",
+        ["Single Post", "Multi-Post Series"],
+        horizontal=True,
+        help="Single: One post. Multi-Post: Multiple posts over time"
+    )
+    
     # Campaign form
     with st.form("campaign_form"):
         st.subheader("Campaign Details")
@@ -252,9 +260,9 @@ def show_chat_page():
         col1, col2 = st.columns(2)
         
         with col1:
-            title = st.text_input("Campaign Title*", placeholder="e.g., Summer Weekend Special")
-            month = st.date_input("Target Month")
+            title = st.text_input("Campaign Title*", placeholder="e.g., Holistic Wellness Launch")
             goal = st.selectbox("Campaign Goal", ["awareness", "bookings", "engagement", "leads"])
+            audience = st.text_input("Target Audience", placeholder="e.g., Wellness seekers, yoga enthusiasts")
         
         with col2:
             platforms = st.multiselect(
@@ -262,12 +270,51 @@ def show_chat_page():
                 ["instagram", "facebook", "tiktok"],
                 default=["instagram", "facebook"]
             )
-            audience = st.text_input("Target Audience", placeholder="e.g., Young couples and families")
-            language = st.selectbox("Language", ["en", "fr", "de", "it"], index=0)
+            language = st.selectbox("Language", ["en", "fr", "de", "it", "es"], index=0)
+        
+        # Multi-post series options
+        if campaign_type == "Multi-Post Series":
+            st.divider()
+            st.subheader("📅 Campaign Schedule")
+            
+            col_date1, col_date2, col_freq = st.columns(3)
+            with col_date1:
+                start_date = st.date_input("Start Date*", datetime.now().date())
+            with col_date2:
+                end_date = st.date_input("End Date*", datetime.now().date() + timedelta(days=90))
+            with col_freq:
+                # Calculate weeks between dates
+                if end_date > start_date:
+                    weeks_diff = (end_date - start_date).days // 7
+                    posts_per_week = st.selectbox(
+                        "Posts per Week*",
+                        [1, 2, 3, 4],
+                        index=0,
+                        help=f"Campaign runs {weeks_diff} weeks"
+                    )
+                    total_posts = weeks_diff * posts_per_week
+                    st.info(f"📊 Total: ~{total_posts} posts")
+                else:
+                    posts_per_week = 1
+            
+            st.divider()
+            st.subheader("🎯 Services/Products to Feature")
+            
+            services = st.text_area(
+                "List Services (one per line)*",
+                placeholder="Yoga Program\nHypopressive Gymnastics\nTraditional Thai Massage\nSound Healing\nPilates Sessions",
+                height=120,
+                help="Each service will be featured in rotation across posts"
+            )
+        else:
+            start_date = datetime.now().date()
+            end_date = start_date
+            posts_per_week = 1
+            services = ""
         
         brief = st.text_area(
             "Campaign Brief*",
-            placeholder="Describe what you want this campaign to showcase...",
+            placeholder="Example: Launch holistic wellness program at Elbitat. Mediterranean version of Kamalaya Koh Samui. Feature yoga, Thai massage, sound harmonization, pilates. Target wellness seekers.",
             height=150
         )
         
@@ -276,48 +323,92 @@ def show_chat_page():
         if submitted:
             if not title or not brief or not platforms:
                 st.error("Please fill in all required fields (marked with *)")
+            elif campaign_type == "Multi-Post Series" and (not services or end_date <= start_date):
+                st.error("For multi-post campaigns, please provide services and valid date range")
             else:
-                # Create request
                 workspace = get_workspace_path()
                 requests_dir = workspace / "requests"
                 requests_dir.mkdir(parents=True, exist_ok=True)
                 
                 safe_title = title.replace(" ", "_").lower()
-                request_file = requests_dir / f"{safe_title}.json"
                 
-                request_data = {
-                    "title": title,
-                    "month": month.strftime("%Y-%m"),
-                    "goal": goal,
-                    "platforms": platforms,
-                    "audience": audience,
-                    "language": language,
-                    "brief": brief
-                }
+                # Parse services list
+                service_list = [s.strip() for s in services.split('\n') if s.strip()] if services else []
                 
-                with open(request_file, 'w', encoding='utf-8') as f:
-                    json.dump(request_data, f, indent=2, ensure_ascii=False)
+                if campaign_type == "Multi-Post Series":
+                    # Generate multiple requests - one for each post
+                    weeks_count = (end_date - start_date).days // 7
+                    total_posts = weeks_count * posts_per_week
+                    
+                    with st.spinner(f"Creating {total_posts} campaign posts..."):
+                        for post_num in range(total_posts):
+                            # Calculate post date
+                            days_offset = (post_num * 7) // posts_per_week
+                            post_date = start_date + timedelta(days=days_offset)
+                            
+                            # Rotate through services
+                            featured_service = service_list[post_num % len(service_list)] if service_list else "wellness"
+                            
+                            # Create unique request for this post
+                            request_file = requests_dir / f"{safe_title}_post{post_num+1:02d}.json"
+                            
+                            request_data = {
+                                "title": f"{title} - Post {post_num+1}/{total_posts}",
+                                "campaign_series": title,
+                                "post_number": post_num + 1,
+                                "total_posts": total_posts,
+                                "scheduled_date": post_date.strftime("%Y-%m-%d"),
+                                "goal": goal,
+                                "platforms": platforms,
+                                "audience": audience,
+                                "language": language,
+                                "featured_service": featured_service,
+                                "all_services": service_list,
+                                "brief": f"{brief}\n\nPost {post_num+1}/{total_posts} - Focus: {featured_service}\nScheduled for: {post_date.strftime('%B %d, %Y')}"
+                            }
+                            
+                            with open(request_file, 'w', encoding='utf-8') as f:
+                                json.dump(request_data, f, indent=2, ensure_ascii=False)
+                        
+                        st.success(f"✅ Created {total_posts} posts spanning {weeks_count} weeks!")
+                        st.info(f"📅 {start_date.strftime('%b %d')} → {end_date.strftime('%b %d, %Y')} | {posts_per_week} post(s)/week")
+                        st.balloons()
+                else:
+                    # Single post campaign
+                    request_file = requests_dir / f"{safe_title}.json"
+                    
+                    request_data = {
+                        "title": title,
+                        "month": start_date.strftime("%Y-%m"),
+                        "goal": goal,
+                        "platforms": platforms,
+                        "audience": audience,
+                        "language": language,
+                        "brief": brief
+                    }
+                    
+                    with open(request_file, 'w', encoding='utf-8') as f:
+                        json.dump(request_data, f, indent=2, ensure_ascii=False)
+                    
+                    st.success(f"✅ Campaign request created!")
+                    st.balloons()
                 
-                # Generate drafts
-                with st.spinner("🎨 Generating campaign with AI..."):
+                # Generate drafts for all saved requests
+                with st.spinner("🎨 Generating content with AI..."):
                     try:
                         drafts = generate_drafts_for_all_requests()
                         
                         if len(drafts) == 0:
-                            st.warning("⚠️ Campaign request saved, but no drafts were generated. Check that the request was saved correctly.")
-                            st.write("**Saved request location:**", str(request_file))
+                            st.warning("⚠️ Campaign request(s) saved, but no drafts were generated yet.")
                         else:
-                            st.success(f"✅ Campaign created! Generated {len(drafts)} draft(s).")
+                            st.success(f"✅ Generated {len(drafts)} draft(s)!")
                             st.info("Go to 'Drafts' page to review and approve your content.")
                             
-                            # Automatically navigate to drafts page only if drafts were created
+                            # Automatically navigate to drafts page
                             st.session_state['page'] = 'drafts'
                             st.rerun()
                     except Exception as e:
                         st.error(f"❌ Error generating drafts: {str(e)}")
-                        st.write("**Request was saved to:**", str(request_file))
-                        st.write("**Error details:**")
-                        st.code(str(e))
                         import traceback
                         st.code(traceback.format_exc())
 
