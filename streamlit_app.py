@@ -1061,6 +1061,19 @@ def show_settings_page():
                             config_file = Path(__file__).parent / ".streamlit" / "credentials.yaml"
                             
                             try:
+                                # Create a mutable copy if config is from st.secrets
+                                if hasattr(config, '__class__') and 'Secrets' in config.__class__.__name__:
+                                    # Config is from st.secrets - create mutable dict
+                                    config_dict = {
+                                        'credentials': {
+                                            'usernames': {}
+                                        },
+                                        'cookie': dict(config['cookie'])
+                                    }
+                                    for username, udata in config['credentials']['usernames'].items():
+                                        config_dict['credentials']['usernames'][str(username)] = dict(udata)
+                                    config = config_dict
+                                
                                 # Update credentials
                                 config['credentials']['usernames'][current_username]['password'] = new_hash
                                 
@@ -1080,7 +1093,7 @@ def show_settings_page():
                                 import time
                                 time.sleep(2)
                                 st.rerun()
-                            except (PermissionError, OSError) as e:
+                            except (PermissionError, OSError, TypeError) as e:
                                 # Cloud environment - can't save to file
                                 st.warning("⚠️ Cannot save password on cloud deployment")
                                 st.info("📋 **Your new password hash:**")
