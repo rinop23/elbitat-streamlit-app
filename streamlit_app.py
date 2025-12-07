@@ -17,6 +17,7 @@ from datetime import datetime, timedelta
 import json
 import yaml
 from yaml.loader import SafeLoader
+import copy
 
 from elbitat_agent.paths import get_workspace_path
 from elbitat_agent.file_storage import load_all_requests, list_request_files
@@ -113,12 +114,16 @@ def initialize_auth():
     """Initialize authentication system."""
     config = load_auth_config()
     
+    # Create a deep copy to avoid modifying read-only st.secrets
+    # streamlit-authenticator tries to track failed login attempts by modifying the credentials dict
+    config_copy = copy.deepcopy(dict(config))
+    
     # Updated for streamlit-authenticator 0.4.x - removed preauthorized parameter
     authenticator = stauth.Authenticate(
-        config['credentials'],
-        config['cookie']['name'],
-        config['cookie']['key'],
-        config['cookie']['expiry_days']
+        config_copy['credentials'],
+        config_copy['cookie']['name'],
+        config_copy['cookie']['key'],
+        config_copy['cookie']['expiry_days']
     )
     
     return authenticator
