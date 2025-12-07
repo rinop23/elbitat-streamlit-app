@@ -114,16 +114,35 @@ def initialize_auth():
     """Initialize authentication system."""
     config = load_auth_config()
     
-    # Create a deep copy to avoid modifying read-only st.secrets
+    # Convert to plain dict to avoid modifying read-only st.secrets
     # streamlit-authenticator tries to track failed login attempts by modifying the credentials dict
-    config_copy = copy.deepcopy(dict(config))
+    if hasattr(config, 'to_dict'):
+        config_dict = config.to_dict()
+    else:
+        # Manual conversion for nested secrets
+        config_dict = {
+            'credentials': {
+                'usernames': {}
+            },
+            'cookie': {
+                'name': str(config['cookie']['name']),
+                'key': str(config['cookie']['key']),
+                'expiry_days': int(config['cookie']['expiry_days'])
+            }
+        }
+        # Copy usernames
+        for username, user_data in config['credentials']['usernames'].items():
+            config_dict['credentials']['usernames'][str(username)] = {
+                'name': str(user_data['name']),
+                'password': str(user_data['password'])
+            }
     
     # Updated for streamlit-authenticator 0.4.x - removed preauthorized parameter
     authenticator = stauth.Authenticate(
-        config_copy['credentials'],
-        config_copy['cookie']['name'],
-        config_copy['cookie']['key'],
-        config_copy['cookie']['expiry_days']
+        config_dict['credentials'],
+        config_dict['cookie']['name'],
+        config_dict['cookie']['key'],
+        config_dict['cookie']['expiry_days']
     )
     
     return authenticator
