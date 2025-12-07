@@ -266,6 +266,199 @@ def show_dashboard():
         st.info("No posts published yet. Create your first campaign!")
 
 
+def show_marketing_strategy_page():
+    """Display marketing strategist chat interface."""
+    st.markdown('<p class="main-header">🎯 Marketing Strategy Assistant</p>', unsafe_allow_html=True)
+    
+    st.write("""
+    Chat with our AI marketing strategist to create a comprehensive marketing plan. 
+    Once your plan is ready, we'll automatically generate all the posts for you!
+    """)
+    
+    # Initialize conversation history
+    if 'marketing_conversation' not in st.session_state:
+        st.session_state.marketing_conversation = []
+    
+    if 'marketing_plan' not in st.session_state:
+        st.session_state.marketing_plan = None
+    
+    # Display conversation history
+    st.subheader("💬 Conversation")
+    
+    chat_container = st.container()
+    with chat_container:
+        for msg in st.session_state.marketing_conversation:
+            if msg['role'] == 'user':
+                st.markdown(f"**You:** {msg['content']}")
+            else:
+                st.markdown(f"**Strategist:** {msg['content']}")
+    
+    # User input
+    with st.form("marketing_chat_form", clear_on_submit=True):
+        user_input = st.text_area(
+            "Your message:",
+            placeholder="Tell me about your marketing goals...",
+            height=100,
+            key="marketing_input"
+        )
+        
+        col1, col2, col3 = st.columns([2, 2, 1])
+        
+        with col1:
+            send_button = st.form_submit_button("💬 Send Message", use_container_width=True)
+        
+        with col2:
+            generate_plan_button = st.form_submit_button("📋 Generate Marketing Plan", use_container_width=True)
+        
+        with col3:
+            if st.form_submit_button("🔄 New Chat"):
+                st.session_state.marketing_conversation = []
+                st.session_state.marketing_plan = None
+                st.rerun()
+    
+    # Handle send message
+    if send_button and user_input:
+        from elbitat_agent.agents.marketing_strategist import chat_with_marketing_agent
+        
+        # Add user message
+        st.session_state.marketing_conversation.append({
+            "role": "user",
+            "content": user_input
+        })
+        
+        # Get AI response
+        with st.spinner("🤔 Thinking..."):
+            try:
+                response = chat_with_marketing_agent(
+                    user_input,
+                    st.session_state.marketing_conversation[:-1]  # Exclude the message we just added
+                )
+                
+                st.session_state.marketing_conversation.append({
+                    "role": "assistant",
+                    "content": response
+                })
+                
+                st.rerun()
+            except Exception as e:
+                st.error(f"Error: {str(e)}")
+    
+    # Handle generate plan
+    if generate_plan_button:
+        if len(st.session_state.marketing_conversation) < 2:
+            st.warning("Please have a conversation with the strategist first to define your campaign needs.")
+        else:
+            from elbitat_agent.agents.marketing_strategist import generate_marketing_plan
+            
+            with st.spinner("📊 Creating your comprehensive marketing plan..."):
+                try:
+                    plan = generate_marketing_plan(st.session_state.marketing_conversation)
+                    st.session_state.marketing_plan = plan
+                    st.success("✅ Marketing plan generated!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error generating plan: {str(e)}")
+    
+    # Display marketing plan if generated
+    if st.session_state.marketing_plan:
+        st.divider()
+        st.subheader("📋 Your Marketing Plan")
+        
+        plan = st.session_state.marketing_plan
+        
+        # Overview
+        with st.expander("📊 Campaign Overview", expanded=True):
+            overview = plan.get('overview', {})
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.write(f"**Campaign:** {plan.get('campaign_name', 'N/A')}")
+                st.write(f"**Objective:** {overview.get('objective', 'N/A')}")
+                st.write(f"**Target Audience:** {overview.get('target_audience', 'N/A')}")
+            
+            with col2:
+                st.write(f"**Duration:** {overview.get('duration_weeks', 'N/A')} weeks")
+                st.write(f"**Key Message:** {overview.get('key_message', 'N/A')}")
+        
+        # Content Strategy
+        with st.expander("✍️ Content Strategy"):
+            content = plan.get('content_strategy', {})
+            st.write(f"**Tone:** {content.get('tone', 'N/A')}")
+            st.write(f"**Themes:** {', '.join(content.get('themes', []))}")
+            st.write(f"**Content Pillars:** {', '.join(content.get('content_pillars', []))}")
+        
+        # Posting Schedule
+        with st.expander("📅 Posting Schedule"):
+            schedule = plan.get('posting_schedule', {})
+            st.write(f"**Frequency:** {schedule.get('frequency_per_week', 'N/A')} posts per week")
+            st.write(f"**Platforms:** {', '.join(schedule.get('platforms', []))}")
+            st.write(f"**Best Times:** {schedule.get('best_times', 'N/A')}")
+        
+        # Posts breakdown
+        posts = plan.get('posts', [])
+        if posts:
+            with st.expander(f"📝 Planned Posts ({len(posts)} posts)"):
+                for i, post in enumerate(posts):
+                    st.markdown(f"""
+                    **Post {i+1}** - Week {post.get('week', 'N/A')}
+                    - **Focus:** {post.get('focus_service', 'N/A')}
+                    - **Theme:** {post.get('theme', 'N/A')}
+                    - **Goal:** {post.get('goal', 'N/A')}
+                    - **Content:** {post.get('suggested_content', 'N/A')}
+                    """)
+                    st.divider()
+        
+        # Raw plan if available
+        if 'raw_plan' in plan:
+            with st.expander("📄 Full Plan Details"):
+                st.text(plan['raw_plan'])
+        
+        # Action buttons
+        st.divider()
+        col1, col2, col3 = st.columns([2, 2, 1])
+        
+        with col1:
+            if st.button("✨ Generate All Posts Now", use_container_width=True, type="primary"):
+                from elbitat_agent.agents.marketing_strategist import convert_plan_to_post_requests
+                from elbitat_agent.file_storage import save_request
+                
+                with st.spinner("Creating post requests from marketing plan..."):
+                    try:
+                        # Get start date
+                        start_date = datetime.now()
+                        
+                        # Convert plan to post requests
+                        post_requests = convert_plan_to_post_requests(plan, start_date)
+                        
+                        # Save each request
+                        workspace = get_workspace_path()
+                        requests_dir = workspace / "requests"
+                        requests_dir.mkdir(parents=True, exist_ok=True)
+                        
+                        for i, request_data in enumerate(post_requests):
+                            filename = f"marketing_{plan.get('campaign_name', 'campaign').replace(' ', '_').lower()}_post{i+1:02d}.json"
+                            request_file = requests_dir / filename
+                            
+                            with open(request_file, 'w', encoding='utf-8') as f:
+                                json.dump(request_data, f, indent=2, ensure_ascii=False)
+                        
+                        st.success(f"✅ Created {len(post_requests)} post requests!")
+                        st.info("💡 Go to Dashboard and click 'Generate Drafts' to create the content.")
+                        
+                    except Exception as e:
+                        st.error(f"Error creating posts: {str(e)}")
+        
+        with col2:
+            if st.button("📝 Edit Plan", use_container_width=True):
+                st.info("Continue the conversation above to refine your plan, then regenerate.")
+        
+        with col3:
+            if st.button("🗑️ Clear"):
+                st.session_state.marketing_plan = None
+                st.session_state.marketing_conversation = []
+                st.rerun()
+
+
 def show_chat_page():
     """Display chat interface for campaign creation."""
     st.markdown('<p class="main-header">💬 Create Campaign</p>', unsafe_allow_html=True)
@@ -1199,7 +1392,7 @@ def main():
         
         # Get current page and convert to title case for radio button
         current_page = st.session_state.page
-        page_options = ["Dashboard", "Chat", "Drafts", "Schedule", "Settings"]
+        page_options = ["Dashboard", "Marketing Strategy", "Chat", "Drafts", "Schedule", "Settings"]
         
         # Find the index of the current page
         try:
@@ -1228,6 +1421,8 @@ def main():
     
     if current_page == 'dashboard':
         show_dashboard()
+    elif current_page == 'marketing strategy':
+        show_marketing_strategy_page()
     elif current_page == 'chat':
         show_chat_page()
     elif current_page == 'drafts':

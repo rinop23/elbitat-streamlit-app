@@ -7,11 +7,11 @@ After creating a public GitHub repository, run these commands:
 ```bash
 cd "c:\Users\hp\elbitat-social-agent\elbitat-social-agent\streamlit-deploy"
 
-# Add your GitHub repository (replace with YOUR repository URL)
-git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPO_NAME.git
+# GitHub repository already configured:
+# https://github.com/rinop23/elbitat-streamlit-app
 
 # Push all commits
-git push -u origin master
+git push origin master
 ```
 
 ## Step 2: Deploy to Streamlit Cloud
