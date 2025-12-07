@@ -221,21 +221,24 @@ def show_dashboard():
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        if st.button("💬 Create Campaign", use_container_width=True):
-            st.session_state['page'] = 'chat'
+        if st.button("💬 Create Campaign", use_container_width=True, key="quick_chat"):
+            st.session_state.page = 'chat'
             st.rerun()
     
     with col2:
-        if st.button("✨ Generate Drafts", use_container_width=True):
+        if st.button("✨ Generate Drafts", use_container_width=True, key="quick_generate"):
             with st.spinner("Generating drafts..."):
-                drafts = generate_drafts_for_all_requests()
-                st.success(f"Generated {len(drafts)} draft(s)!")
-                st.session_state['page'] = 'drafts'
-                st.rerun()
+                try:
+                    drafts = generate_drafts_for_all_requests()
+                    st.success(f"Generated {len(drafts)} draft(s)!")
+                    st.session_state.page = 'drafts'
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error generating drafts: {str(e)}")
     
     with col3:
-        if st.button("📝 Review Drafts", use_container_width=True):
-            st.session_state['page'] = 'drafts'
+        if st.button("📝 Review Drafts", use_container_width=True, key="quick_drafts"):
+            st.session_state.page = 'drafts'
             st.rerun()
     
     # Recent activity
@@ -976,6 +979,10 @@ def show_settings_page():
     
     # Change password section
     with st.expander("🔒 Change Password"):
+        # Warning for cloud deployments
+        if hasattr(st, 'secrets') and 'credentials' in dir(st.secrets):
+            st.warning("⚠️ Password changes are not supported when using Streamlit Cloud secrets. To change your password: Update the password hash in Streamlit Cloud dashboard under 'Manage app' → 'Secrets'.")
+        
         with st.form("change_password_form"):
             st.write("**Change Your Password**")
             
@@ -1127,14 +1134,18 @@ def main():
         
         st.subheader("Navigation")
         
+        # Initialize page in session state if not present
+        if 'page' not in st.session_state:
+            st.session_state.page = 'dashboard'
+        
         # Get current page and convert to title case for radio button
-        current_page = st.session_state.get('page', 'dashboard')
+        current_page = st.session_state.page
         page_options = ["Dashboard", "Chat", "Drafts", "Schedule", "Settings"]
         
         # Find the index of the current page
         try:
             default_index = page_options.index(current_page.title())
-        except ValueError:
+        except (ValueError, AttributeError):
             default_index = 0
         
         page = st.radio(
@@ -1144,9 +1155,9 @@ def main():
             key="page_selector"
         )
         
-        # Update session state page
+        # Update session state page using dot notation
         if page:
-            st.session_state['page'] = page.lower()
+            st.session_state.page = page.lower()
         
         st.divider()
         
@@ -1154,7 +1165,7 @@ def main():
         st.caption("Powered by Streamlit")
     
     # Main content area
-    current_page = st.session_state.get('page', 'dashboard')
+    current_page = st.session_state.page if 'page' in st.session_state else 'dashboard'
     
     if current_page == 'dashboard':
         show_dashboard()
