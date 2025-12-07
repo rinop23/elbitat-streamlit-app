@@ -267,7 +267,7 @@ def show_dashboard():
 
 
 def show_marketing_strategy_page():
-        """Display marketing strategist chat interface."""
+    """Display marketing strategist chat interface."""
     try:
         st.markdown('<p class="main-header">🎯 Marketing Strategy Assistant</p>', unsafe_allow_html=True)
         
