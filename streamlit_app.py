@@ -267,7 +267,7 @@ def show_dashboard():
 
 
 def show_marketing_strategy_page():
-    """Display marketing strategist chat interface."""
+        """Display marketing strategist chat interface."""
     try:
         st.markdown('<p class="main-header">🎯 Marketing Strategy Assistant</p>', unsafe_allow_html=True)
         
@@ -275,19 +275,19 @@ def show_marketing_strategy_page():
         Chat with our AI marketing strategist to create a comprehensive marketing plan. 
         Once your plan is ready, we'll automatically generate all the posts for you!
         """)
+        
+        # Initialize conversation history
+        if 'marketing_conversation' not in st.session_state:
+            st.session_state.marketing_conversation = []
+        
+        if 'marketing_plan' not in st.session_state:
+            st.session_state.marketing_plan = None
+        
+        # Display conversation history
+        st.subheader("💬 Conversation")
     
-    # Initialize conversation history
-    if 'marketing_conversation' not in st.session_state:
-        st.session_state.marketing_conversation = []
-    
-    if 'marketing_plan' not in st.session_state:
-        st.session_state.marketing_plan = None
-    
-    # Display conversation history
-    st.subheader("💬 Conversation")
-    
-    chat_container = st.container()
-    with chat_container:
+        chat_container = st.container()
+        with chat_container:
         for msg in st.session_state.marketing_conversation:
             if msg['role'] == 'user':
                 st.markdown(f"**You:** {msg['content']}")
@@ -295,7 +295,7 @@ def show_marketing_strategy_page():
                 st.markdown(f"**Strategist:** {msg['content']}")
     
     # User input
-    with st.form("marketing_chat_form", clear_on_submit=True):
+        with st.form("marketing_chat_form", clear_on_submit=True):
         user_input = st.text_area(
             "Your message:",
             placeholder="Tell me about your marketing goals...",
@@ -318,7 +318,7 @@ def show_marketing_strategy_page():
                 st.rerun()
     
     # Handle send message
-    if send_button and user_input:
+        if send_button and user_input:
         from elbitat_agent.agents.marketing_strategist import chat_with_marketing_agent
         
         # Add user message
@@ -345,7 +345,7 @@ def show_marketing_strategy_page():
                 st.error(f"Error: {str(e)}")
     
     # Handle generate plan
-    if generate_plan_button:
+        if generate_plan_button:
         if len(st.session_state.marketing_conversation) < 2:
             st.warning("Please have a conversation with the strategist first to define your campaign needs.")
         else:
@@ -361,7 +361,7 @@ def show_marketing_strategy_page():
                     st.error(f"Error generating plan: {str(e)}")
     
     # Display marketing plan if generated
-    if st.session_state.marketing_plan:
+        if st.session_state.marketing_plan:
         st.divider()
         st.subheader("📋 Your Marketing Plan")
         
@@ -459,7 +459,7 @@ def show_marketing_strategy_page():
                 st.session_state.marketing_conversation = []
                 st.rerun()
     
-    except Exception as e:
+        except Exception as e:
         st.error(f"Error loading Marketing Strategy page: {str(e)}")
         st.info("Please try refreshing the page or contact support if the issue persists.")
         import traceback
