@@ -164,8 +164,6 @@ def show_login_page():
     col1, col2, col3 = st.columns([1, 2, 1])
     
     with col2:
-        st.info("**Demo Credentials:**\n\n**Username:** admin  \n**Password:** admin123\n\n**OR**\n\n**Username:** elbitat  \n**Password:** elbitat2025")
-        
         authenticator = initialize_auth()
         
         # Updated for streamlit-authenticator 0.4.x - login() now modifies session_state directly
