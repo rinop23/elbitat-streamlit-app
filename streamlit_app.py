@@ -268,12 +268,13 @@ def show_dashboard():
 
 def show_marketing_strategy_page():
     """Display marketing strategist chat interface."""
-    st.markdown('<p class="main-header">🎯 Marketing Strategy Assistant</p>', unsafe_allow_html=True)
-    
-    st.write("""
-    Chat with our AI marketing strategist to create a comprehensive marketing plan. 
-    Once your plan is ready, we'll automatically generate all the posts for you!
-    """)
+    try:
+        st.markdown('<p class="main-header">🎯 Marketing Strategy Assistant</p>', unsafe_allow_html=True)
+        
+        st.write("""
+        Chat with our AI marketing strategist to create a comprehensive marketing plan. 
+        Once your plan is ready, we'll automatically generate all the posts for you!
+        """)
     
     # Initialize conversation history
     if 'marketing_conversation' not in st.session_state:
@@ -457,6 +458,12 @@ def show_marketing_strategy_page():
                 st.session_state.marketing_plan = None
                 st.session_state.marketing_conversation = []
                 st.rerun()
+    
+    except Exception as e:
+        st.error(f"Error loading Marketing Strategy page: {str(e)}")
+        st.info("Please try refreshing the page or contact support if the issue persists.")
+        import traceback
+        st.code(traceback.format_exc())
 
 
 def show_chat_page():
