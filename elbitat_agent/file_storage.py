@@ -45,9 +45,15 @@ def save_draft(draft: AdDraft, filename: str | None = None) -> Path:
     drafts_dir.mkdir(parents=True, exist_ok=True)
 
     if filename is None:
-        safe_title = draft.request.title.replace(" ", "_").lower()
+        # Sanitize filename: remove/replace problematic characters
+        safe_title = draft.request.title.replace(" ", "_").replace("/", "_").replace("\\", "_").lower()
+        # Remove any other path separators or special chars
+        safe_title = "".join(c if c.isalnum() or c in "_-" else "_" for c in safe_title)
         filename = f"{safe_title}.draft.json"
 
+    # Ensure filename doesn't create subdirectories
+    filename = filename.replace("/", "_").replace("\\", "_")
+    
     path = drafts_dir / filename
     with path.open("w", encoding="utf-8") as f:
         json.dump(draft.to_dict(), f, indent=2, ensure_ascii=False)
