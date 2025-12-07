@@ -2,7 +2,7 @@
 
 Streamlit-based interface with authentication for:
 - User login with credentials
-- Chat with agent to create campaigns
+- Chat with agent to create campaigns and marketing strategies
 - Review and approve generated drafts
 - View scheduled posts
 - Configure API settings
