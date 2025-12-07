@@ -979,12 +979,40 @@ def show_settings_page():
     
     # Change password section
     with st.expander("🔒 Change Password"):
-        # Warning for cloud deployments
-        if hasattr(st, 'secrets') and 'credentials' in dir(st.secrets):
-            st.warning("⚠️ Password changes are not supported when using Streamlit Cloud secrets. To change your password: Update the password hash in Streamlit Cloud dashboard under 'Manage app' → 'Secrets'.")
+        # Check if using cloud secrets
+        using_cloud_secrets = hasattr(st, 'secrets') and 'credentials' in dir(st.secrets)
+        
+        if using_cloud_secrets:
+            st.info("📌 **Password Management on Streamlit Cloud**")
+            st.write("""
+            To change your password when deployed on Streamlit Cloud:
+            
+            1. Generate a new password hash using bcrypt
+            2. Go to your app's dashboard → **Manage app** → **Secrets**
+            3. Update the password hash for your username
+            4. Save changes - the app will restart automatically
+            
+            **Or** use the form below to generate a new hash:
+            """)
+            
+            with st.form("generate_hash_form"):
+                new_pwd_for_hash = st.text_input("New Password", type="password", key="pwd_for_hash")
+                if st.form_submit_button("🔑 Generate Hash"):
+                    if new_pwd_for_hash:
+                        import bcrypt
+                        new_hash = bcrypt.hashpw(new_pwd_for_hash.encode(), bcrypt.gensalt()).decode()
+                        st.code(new_hash, language="text")
+                        st.success("✅ Copy this hash and paste it into your Streamlit Cloud secrets!")
+                    else:
+                        st.error("Please enter a password")
+            
+            st.divider()
         
         with st.form("change_password_form"):
-            st.write("**Change Your Password**")
+            if using_cloud_secrets:
+                st.caption("⚠️ Note: Password changes below won't persist on Streamlit Cloud. Use hash generator above instead.")
+            else:
+                st.write("**Change Your Password**")
             
             current_password = st.text_input(
                 "Current Password",
@@ -1029,25 +1057,45 @@ def show_settings_page():
                             # Generate new password hash
                             new_hash = bcrypt.hashpw(new_password.encode(), bcrypt.gensalt()).decode()
                             
-                            # Update credentials file
-                            config['credentials']['usernames'][current_username]['password'] = new_hash
-                            
-                            # Save to file
+                            # Try to save to YAML file (works locally)
                             config_file = Path(__file__).parent / ".streamlit" / "credentials.yaml"
-                            with open(config_file, 'w') as f:
-                                yaml.dump(config, f, default_flow_style=False)
                             
-                            st.success("✅ Password changed successfully! Please log in again with your new password.")
-                            
-                            # Clear session and force re-login
-                            st.session_state['authentication_status'] = None
-                            st.session_state['name'] = None
-                            st.session_state['username'] = None
-                            
-                            st.info("Redirecting to login page...")
-                            import time
-                            time.sleep(2)
-                            st.rerun()
+                            try:
+                                # Update credentials
+                                config['credentials']['usernames'][current_username]['password'] = new_hash
+                                
+                                # Attempt to save to file
+                                config_file.parent.mkdir(parents=True, exist_ok=True)
+                                with open(config_file, 'w') as f:
+                                    yaml.dump(config, f, default_flow_style=False)
+                                
+                                st.success("✅ Password changed successfully! Please log in again with your new password.")
+                                
+                                # Clear session and force re-login
+                                st.session_state['authentication_status'] = None
+                                st.session_state['name'] = None
+                                st.session_state['username'] = None
+                                
+                                st.info("Redirecting to login page...")
+                                import time
+                                time.sleep(2)
+                                st.rerun()
+                            except (PermissionError, OSError) as e:
+                                # Cloud environment - can't save to file
+                                st.warning("⚠️ Cannot save password on cloud deployment")
+                                st.info("📋 **Your new password hash:**")
+                                st.code(new_hash, language="text")
+                                st.write("""
+                                To apply this password change:
+                                1. Copy the hash above
+                                2. Go to Streamlit Cloud dashboard → Manage app → Secrets
+                                3. Update the password for `""" + current_username + """`:
+                                ```toml
+                                [credentials.usernames.""" + current_username + """]
+                                password = \"""" + new_hash + """\"
+                                ```
+                                4. Save changes
+                                """)
                         else:
                             st.error("❌ Current password is incorrect")
                     else:
