@@ -1746,9 +1746,6 @@ def show_email_campaigns_page():
         
         except Exception as e:
             st.error(f"Error loading campaigns: {str(e)}")
-        - `media/` - Selected images for campaigns
-        - `logs/` - System logs
-        """)
 
 
 def main():
