@@ -647,7 +647,37 @@ def show_chat_page():
 
 def show_drafts_page():
     """Display drafts review and approval page."""
-    st.markdown('<p class="main-header">📝 Review & Approve Drafts</p>', unsafe_allow_html=True)
+    col_header, col_upload = st.columns([3, 1])
+    
+    with col_header:
+        st.markdown('<p class="main-header">📝 Review & Approve Drafts</p>', unsafe_allow_html=True)
+    
+    with col_upload:
+        # Upload button always visible
+        with st.expander("📤 Upload Draft"):
+            uploaded_file = st.file_uploader("Upload Draft JSON", type=['json'], key='draft_uploader_main', label_visibility="collapsed")
+            if uploaded_file is not None:
+                try:
+                    draft_data = json.load(uploaded_file)
+                    
+                    # Validate draft structure
+                    if 'request' in draft_data and 'copy_by_platform' in draft_data:
+                        # Save to file system and database
+                        from elbitat_agent.file_storage import save_draft_dict
+                        
+                        filename = uploaded_file.name
+                        if not filename.endswith('.json'):
+                            filename += '.json'
+                        
+                        save_draft_dict(draft_data, filename)
+                        st.success(f"✅ Uploaded!")
+                        st.rerun()
+                    else:
+                        st.error("Invalid format")
+                except json.JSONDecodeError:
+                    st.error("Invalid JSON")
+                except Exception as e:
+                    st.error(f"Error: {str(e)}")
     
     workspace = get_workspace_path()
     drafts_dir = workspace / "drafts"
@@ -660,9 +690,38 @@ def show_drafts_page():
     
     if not draft_files:
         st.info("No drafts available. Create a campaign first!")
-        if st.button("💬 Create Campaign"):
-            st.session_state['page'] = 'chat'
-            st.rerun()
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("💬 Create Campaign", use_container_width=True):
+                st.session_state['page'] = 'chat'
+                st.rerun()
+        
+        with col2:
+            # Upload draft JSON file
+            uploaded_file = st.file_uploader("📤 Upload Draft JSON", type=['json'], key='draft_uploader')
+            if uploaded_file is not None:
+                try:
+                    draft_data = json.load(uploaded_file)
+                    
+                    # Validate draft structure
+                    if 'request' in draft_data and 'copy_by_platform' in draft_data:
+                        # Save to file system and database
+                        from elbitat_agent.file_storage import save_draft_dict
+                        
+                        filename = uploaded_file.name
+                        if not filename.endswith('.json'):
+                            filename += '.json'
+                        
+                        save_draft_dict(draft_data, filename)
+                        st.success(f"✅ Draft uploaded: {filename}")
+                        st.rerun()
+                    else:
+                        st.error("Invalid draft file format. Must contain 'request' and 'copy_by_platform'.")
+                except json.JSONDecodeError:
+                    st.error("Invalid JSON file. Please upload a valid draft JSON file.")
+                except Exception as e:
+                    st.error(f"Error uploading draft: {str(e)}")
         return
     
     # Display drafts in grid
