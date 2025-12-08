@@ -70,6 +70,55 @@ def init_database():
         )
     ''')
     
+    # Email contacts table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS email_contacts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT UNIQUE NOT NULL,
+            company_name TEXT,
+            website TEXT,
+            country TEXT,
+            industry TEXT,
+            status TEXT DEFAULT 'new',
+            source TEXT,
+            notes TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    # Email campaigns table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS email_campaigns (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            subject TEXT NOT NULL,
+            template TEXT NOT NULL,
+            status TEXT DEFAULT 'draft',
+            sent_count INTEGER DEFAULT 0,
+            opened_count INTEGER DEFAULT 0,
+            clicked_count INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    # Email sends table (tracking individual sends)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS email_sends (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            campaign_id INTEGER,
+            contact_id INTEGER,
+            status TEXT DEFAULT 'pending',
+            sent_at TIMESTAMP,
+            opened_at TIMESTAMP,
+            clicked_at TIMESTAMP,
+            error_message TEXT,
+            FOREIGN KEY (campaign_id) REFERENCES email_campaigns(id),
+            FOREIGN KEY (contact_id) REFERENCES email_contacts(id)
+        )
+    ''')
+    
     conn.commit()
     conn.close()
 
@@ -334,3 +383,196 @@ def migrate_files_to_db():
         print(f"Error migrating scheduled posts: {e}")
     
     return migrated_count
+
+
+# ===== EMAIL CONTACT OPERATIONS =====
+
+def save_email_contact(email: str, company_name: str = None, website: str = None, 
+                       country: str = None, industry: str = None, source: str = None) -> bool:
+    """Save an email contact to the database."""
+    try:
+        db_path = get_db_path()
+        conn = sqlite3.connect(str(db_path))
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            INSERT OR REPLACE INTO email_contacts 
+            (email, company_name, website, country, industry, source, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (email, company_name, website, country, industry, source, datetime.now()))
+        
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"Error saving email contact: {e}")
+        return False
+
+
+def get_all_email_contacts(status: str = None) -> List[Dict]:
+    """Get all email contacts from the database, optionally filtered by status."""
+    try:
+        db_path = get_db_path()
+        conn = sqlite3.connect(str(db_path))
+        cursor = conn.cursor()
+        
+        if status:
+            cursor.execute('''
+                SELECT id, email, company_name, website, country, industry, status, source, notes, created_at
+                FROM email_contacts 
+                WHERE status = ?
+                ORDER BY created_at DESC
+            ''', (status,))
+        else:
+            cursor.execute('''
+                SELECT id, email, company_name, website, country, industry, status, source, notes, created_at
+                FROM email_contacts 
+                ORDER BY created_at DESC
+            ''')
+        
+        rows = cursor.fetchall()
+        conn.close()
+        
+        contacts = []
+        for row in rows:
+            contacts.append({
+                'id': row[0],
+                'email': row[1],
+                'company_name': row[2],
+                'website': row[3],
+                'country': row[4],
+                'industry': row[5],
+                'status': row[6],
+                'source': row[7],
+                'notes': row[8],
+                'created_at': row[9]
+            })
+        
+        return contacts
+    except Exception as e:
+        print(f"Error loading email contacts: {e}")
+        return []
+
+
+def update_email_contact_status(contact_id: int, status: str) -> bool:
+    """Update the status of an email contact."""
+    try:
+        db_path = get_db_path()
+        conn = sqlite3.connect(str(db_path))
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            UPDATE email_contacts 
+            SET status = ?, updated_at = ?
+            WHERE id = ?
+        ''', (status, datetime.now(), contact_id))
+        
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"Error updating contact status: {e}")
+        return False
+
+
+def delete_email_contact(contact_id: int) -> bool:
+    """Delete an email contact from the database."""
+    try:
+        db_path = get_db_path()
+        conn = sqlite3.connect(str(db_path))
+        cursor = conn.cursor()
+        
+        cursor.execute('DELETE FROM email_contacts WHERE id = ?', (contact_id,))
+        
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"Error deleting contact: {e}")
+        return False
+
+
+# ===== EMAIL CAMPAIGN OPERATIONS =====
+
+def save_email_campaign(name: str, subject: str, template: str) -> Optional[int]:
+    """Save an email campaign and return its ID."""
+    try:
+        db_path = get_db_path()
+        conn = sqlite3.connect(str(db_path))
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            INSERT INTO email_campaigns (name, subject, template, created_at)
+            VALUES (?, ?, ?, ?)
+        ''', (name, subject, template, datetime.now()))
+        
+        campaign_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+        return campaign_id
+    except Exception as e:
+        print(f"Error saving campaign: {e}")
+        return None
+
+
+def get_all_email_campaigns() -> List[Dict]:
+    """Get all email campaigns from the database."""
+    try:
+        db_path = get_db_path()
+        conn = sqlite3.connect(str(db_path))
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT id, name, subject, template, status, sent_count, opened_count, clicked_count, created_at
+            FROM email_campaigns 
+            ORDER BY created_at DESC
+        ''')
+        
+        rows = cursor.fetchall()
+        conn.close()
+        
+        campaigns = []
+        for row in rows:
+            campaigns.append({
+                'id': row[0],
+                'name': row[1],
+                'subject': row[2],
+                'template': row[3],
+                'status': row[4],
+                'sent_count': row[5],
+                'opened_count': row[6],
+                'clicked_count': row[7],
+                'created_at': row[8]
+            })
+        
+        return campaigns
+    except Exception as e:
+        print(f"Error loading campaigns: {e}")
+        return []
+
+
+def record_email_send(campaign_id: int, contact_id: int, status: str = 'sent') -> bool:
+    """Record that an email was sent to a contact."""
+    try:
+        db_path = get_db_path()
+        conn = sqlite3.connect(str(db_path))
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            INSERT INTO email_sends (campaign_id, contact_id, status, sent_at)
+            VALUES (?, ?, ?, ?)
+        ''', (campaign_id, contact_id, status, datetime.now()))
+        
+        # Update campaign sent count
+        cursor.execute('''
+            UPDATE email_campaigns 
+            SET sent_count = sent_count + 1, updated_at = ?
+            WHERE id = ?
+        ''', (datetime.now(), campaign_id))
+        
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"Error recording email send: {e}")
+        return False
