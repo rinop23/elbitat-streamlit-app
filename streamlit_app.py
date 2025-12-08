@@ -1443,13 +1443,29 @@ def show_email_campaigns_page():
                             # Save to database
                             if st.button("💾 Save All Contacts to Database", use_container_width=True):
                                 with st.spinner("Saving contacts..."):
-                                    # Ensure database is initialized
-                                    from elbitat_agent.database import init_database
-                                    init_database()
-                                    
-                                    stats = bulk_save_contacts(contacts)
-                                    st.success(f"Saved {stats['saved']} contacts! (Skipped {stats['skipped']} duplicates)")
-                                    st.rerun()
+                                    try:
+                                        # Ensure database is initialized
+                                        from elbitat_agent.database import init_database, get_db_path
+                                        init_database()
+                                        
+                                        db_path = get_db_path()
+                                        st.info(f"Database: {db_path}")
+                                        
+                                        stats = bulk_save_contacts(contacts)
+                                        
+                                        if stats['saved'] > 0:
+                                            st.success(f"✅ Saved {stats['saved']} contacts! (Skipped {stats['skipped']} duplicates)")
+                                        elif stats['skipped'] > 0:
+                                            st.warning(f"All {stats['skipped']} contacts were duplicates (already in database)")
+                                        else:
+                                            st.error(f"Failed to save contacts. Errors: {stats.get('errors', 0)}")
+                                        
+                                        st.balloons()
+                                        st.rerun()
+                                    except Exception as e:
+                                        st.error(f"Error saving contacts: {str(e)}")
+                                        import traceback
+                                        st.code(traceback.format_exc())
                         else:
                             st.warning("No contacts found. Try a different search query.")
                     
@@ -1462,12 +1478,32 @@ def show_email_campaigns_page():
         
         # Debug info
         from elbitat_agent.database import get_db_path
+        import sqlite3
         db_path = get_db_path()
         with st.expander("🔍 Debug Info"):
             st.write(f"**Database location:** `{db_path}`")
             st.write(f"**Database exists:** {db_path.exists()}")
             if db_path.exists():
                 st.write(f"**Database size:** {db_path.stat().st_size} bytes")
+                
+                # Count total contacts
+                try:
+                    conn = sqlite3.connect(str(db_path))
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT COUNT(*) FROM email_contacts")
+                    total_count = cursor.fetchone()[0]
+                    st.write(f"**Total contacts in DB:** {total_count}")
+                    
+                    # Show status breakdown
+                    cursor.execute("SELECT status, COUNT(*) FROM email_contacts GROUP BY status")
+                    status_counts = cursor.fetchall()
+                    st.write("**Status breakdown:**")
+                    for status, count in status_counts:
+                        st.write(f"  - {status}: {count}")
+                    
+                    conn.close()
+                except Exception as e:
+                    st.error(f"Error querying database: {e}")
         
         # Filter options
         col1, col2 = st.columns([3, 1])
