@@ -1460,6 +1460,15 @@ def show_email_campaigns_page():
     with tab2:
         st.subheader("Manage Contacts")
         
+        # Debug info
+        from elbitat_agent.database import get_db_path
+        db_path = get_db_path()
+        with st.expander("🔍 Debug Info"):
+            st.write(f"**Database location:** `{db_path}`")
+            st.write(f"**Database exists:** {db_path.exists()}")
+            if db_path.exists():
+                st.write(f"**Database size:** {db_path.stat().st_size} bytes")
+        
         # Filter options
         col1, col2 = st.columns([3, 1])
         
