@@ -198,7 +198,9 @@ def show_dashboard():
     api_status = check_api_configuration()
     workspace = get_workspace_path()
     
-    drafts_count = len(list((workspace / "drafts").glob("*.json"))) if (workspace / "drafts").exists() else 0
+    # Use database counts when available, fallback to file counts
+    from elbitat_agent.file_storage import load_all_drafts
+    drafts_count = len(load_all_drafts())
     scheduled_count = len(list((workspace / "scheduled").glob("*.json"))) if (workspace / "scheduled").exists() else 0
     posted_count = len(list((workspace / "posted").glob("*.json"))) if (workspace / "posted").exists() else 0
     
@@ -679,16 +681,11 @@ def show_drafts_page():
                 except Exception as e:
                     st.error(f"Error: {str(e)}")
     
-    workspace = get_workspace_path()
-    drafts_dir = workspace / "drafts"
+    # Load drafts from database or filesystem
+    from elbitat_agent.file_storage import load_all_drafts
+    drafts = load_all_drafts()
     
-    if not drafts_dir.exists():
-        st.info("No drafts available. Create a campaign first!")
-        return
-    
-    draft_files = sorted(drafts_dir.glob("*.json"))
-    
-    if not draft_files:
+    if not drafts:
         st.info("No drafts available. Create a campaign first!")
         
         col1, col2 = st.columns(2)
@@ -727,11 +724,8 @@ def show_drafts_page():
     # Display drafts in grid
     cols = st.columns(3)
     
-    for idx, draft_file in enumerate(draft_files):
+    for idx, draft_data in enumerate(drafts):
         with cols[idx % 3]:
-            with open(draft_file, 'r', encoding='utf-8') as f:
-                draft_data = json.load(f)
-            
             request = draft_data['request']
             
             with st.container():
@@ -748,8 +742,11 @@ def show_drafts_page():
                     st.write(brief)
                 
                 # Review button
-                if st.button(f"👁️ Review", key=f"review_{draft_file.stem}"):
-                    st.session_state['selected_draft'] = draft_file.stem
+                draft_filename = draft_data.get('_filename', f"draft_{idx}")
+                draft_name = Path(draft_filename).stem if '_filename' in draft_data else f"draft_{idx}"
+                if st.button(f"👁️ Review", key=f"review_{draft_name}"):
+                    st.session_state['selected_draft'] = draft_name
+                    st.session_state['selected_draft_data'] = draft_data
                     st.session_state['show_draft_detail'] = True
                     st.rerun()
     
@@ -760,16 +757,12 @@ def show_drafts_page():
 
 def show_draft_detail_modal():
     """Display detailed draft view in modal-like container."""
-    draft_name = st.session_state.get('selected_draft')
-    workspace = get_workspace_path()
-    draft_file = workspace / "drafts" / f"{draft_name}.json"
+    draft_data = st.session_state.get('selected_draft_data')
+    draft_name = st.session_state.get('selected_draft', 'draft')
     
-    if not draft_file.exists():
+    if not draft_data:
         st.error("Draft not found")
         return
-    
-    with open(draft_file, 'r', encoding='utf-8') as f:
-        draft_data = json.load(f)
     
     request = draft_data['request']
     copy_by_platform = draft_data['copy_by_platform']
@@ -843,7 +836,11 @@ def show_draft_detail_modal():
                                 draft_data['copy_by_platform'] = new_copy
                                 
                                 # Save updated draft to database
-                                save_draft_dict(draft_data, draft_file.name)
+                                draft_filename = draft_data.get('_filename', f"{draft_name}.json")
+                                save_draft_dict(draft_data, draft_filename)
+                                
+                                # Update session state with new data
+                                st.session_state['selected_draft_data'] = draft_data
                                 
                                 st.success("✅ Content regenerated!")
                                 st.rerun()
@@ -910,7 +907,11 @@ def show_draft_detail_modal():
                                 draft_data['selected_images'] = selected_new_images
                                 
                                 # Save updated draft to database
-                                save_draft_dict(draft_data, draft_file.name)
+                                draft_filename = draft_data.get('_filename', f"{st.session_state.get('selected_draft')}.json")
+                                save_draft_dict(draft_data, draft_filename)
+                                
+                                # Update session state with new data
+                                st.session_state['selected_draft_data'] = draft_data
                                 
                                 st.success(f"✅ Updated with {len(selected_new_images)} images!")
                                 st.session_state[f'show_image_selector_{draft_name}'] = False
