@@ -112,11 +112,16 @@ def load_all_drafts() -> List[Dict]:
     """Load all drafts from database or file system."""
     if USE_DATABASE:
         try:
-            return get_drafts_from_db()
+            drafts = get_drafts_from_db()
+            print(f"✅ Loaded {len(drafts)} drafts from database")
+            return drafts
         except Exception as e:
-            print(f"Error loading from database, falling back to files: {e}")
+            print(f"⚠️ Error loading from database, falling back to files: {e}")
+            import traceback
+            traceback.print_exc()
     
     # Fallback to file system
+    print("📁 Loading drafts from file system...")
     _ensure_dirs()
     base = get_workspace_path()
     drafts_dir = base / "drafts"
@@ -131,6 +136,7 @@ def load_all_drafts() -> List[Dict]:
         except Exception as e:
             print(f"Error loading {path.name}: {e}")
     
+    print(f"📁 Loaded {len(drafts)} drafts from file system")
     return drafts
 
 

@@ -11,19 +11,19 @@ import streamlit as st
 def get_db_path() -> Path:
     """Get the database file path.
     
-    On Streamlit Cloud, uses a persistent volume if available,
-    otherwise falls back to app directory (which persists across sessions but not redeployments).
-    For true persistence across redeployments, mount a volume or use external DB.
+    On Streamlit Cloud, the database should be in the app root directory
+    which persists across app restarts (but not across redeployments without mounted volumes).
     """
     # Try to use a persistent location
     if hasattr(st, 'secrets') and 'db_path' in st.secrets:
         db_path = Path(st.secrets['db_path'])
     else:
-        # Use app directory - will persist during session
-        db_path = Path(__file__).parent.parent / 'data'
+        # Use app root directory for better persistence on Streamlit Cloud
+        # This will be at the same level as streamlit_app.py
+        db_path = Path(__file__).parent.parent
     
     db_path.mkdir(parents=True, exist_ok=True)
-    return db_path / 'elbitat.db'
+    return db_path / 'elbitat_ads.db'
 
 
 def init_database():
@@ -217,11 +217,15 @@ def get_all_drafts() -> List[Dict]:
     """Get all drafts from the database."""
     try:
         db_path = get_db_path()
+        print(f"🗄️ Database path: {db_path}")
+        print(f"🗄️ Database exists: {db_path.exists()}")
+        
         conn = sqlite3.connect(str(db_path))
         cursor = conn.cursor()
         
         cursor.execute('SELECT filename, content FROM drafts ORDER BY created_at DESC')
         rows = cursor.fetchall()
+        print(f"🗄️ Found {len(rows)} drafts in database")
         conn.close()
         
         drafts = []
@@ -232,7 +236,9 @@ def get_all_drafts() -> List[Dict]:
         
         return drafts
     except Exception as e:
-        print(f"Error loading drafts from DB: {e}")
+        print(f"❌ Error loading drafts from DB: {e}")
+        import traceback
+        traceback.print_exc()
         return []
 
 
