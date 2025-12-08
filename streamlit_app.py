@@ -27,6 +27,14 @@ from elbitat_agent.file_storage import (
 )
 from elbitat_agent.agents.orchestrator import generate_drafts_for_all_requests
 from elbitat_agent.agents.auto_poster import auto_post_draft, check_api_configuration
+from elbitat_agent.agents.email_finder import discover_contacts, bulk_save_contacts
+from elbitat_agent.agents.email_campaigns import (
+    send_campaign, send_test_email, get_default_templates, personalize_email
+)
+from elbitat_agent.database import (
+    get_all_email_contacts, update_email_contact_status, delete_email_contact,
+    save_email_campaign, get_all_email_campaigns
+)
 from elbitat_agent.models import AdRequest, AdDraft
 
 
@@ -1368,6 +1376,375 @@ def show_settings_page():
         - `drafts/` - Generated draft content
         - `scheduled/` - Approved posts for publishing
         - `posted/` - Published post results
+
+
+def show_email_campaigns_page():
+    """Display email marketing campaigns page with contact discovery and bulk sending."""
+    st.markdown('<p class="main-header">✉️ Email Campaigns</p>', unsafe_allow_html=True)
+    
+    st.markdown("""
+    Discover business contacts from the web and send personalized email campaigns.
+    """)
+    
+    # Create tabs for different email campaign functions
+    tab1, tab2, tab3, tab4 = st.tabs(["🔍 Find Contacts", "📋 Contact List", "✉️ Create Campaign", "🚀 Send Campaign"])
+    
+    with tab1:
+        st.subheader("Discover Business Contacts")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            search_query = st.text_input(
+                "Search Query",
+                placeholder="e.g., wellness agencies, marketing firms, restaurants",
+                help="Describe the type of businesses you want to find"
+            )
+        
+        with col2:
+            country = st.text_input(
+                "Country",
+                value="Denmark",
+                help="Country to focus the search on"
+            )
+        
+        max_companies = st.slider("Maximum Companies to Find", 5, 50, 10)
+        
+        if st.button("🔍 Start Discovery", type="primary", use_container_width=True):
+            if not search_query:
+                st.error("Please enter a search query")
+            else:
+                with st.spinner(f"Searching for {search_query} in {country}..."):
+                    try:
+                        # Discover contacts
+                        contacts = discover_contacts(search_query, country, max_companies)
+                        
+                        if contacts:
+                            st.success(f"✅ Found {len(contacts)} contacts!")
+                            
+                            # Display results in a table
+                            st.subheader("Discovered Contacts")
+                            
+                            for i, contact in enumerate(contacts, 1):
+                                with st.expander(f"{i}. {contact.get('company_name', 'Unknown')} - {contact.get('email', 'No email')}"):
+                                    col1, col2 = st.columns(2)
+                                    
+                                    with col1:
+                                        st.write(f"**Email:** {contact.get('email', 'N/A')}")
+                                        st.write(f"**Company:** {contact.get('company_name', 'N/A')}")
+                                        st.write(f"**Website:** {contact.get('website', 'N/A')}")
+                                    
+                                    with col2:
+                                        st.write(f"**Country:** {contact.get('country', 'N/A')}")
+                                        st.write(f"**Industry:** {contact.get('industry', 'N/A')}")
+                                        st.write(f"**Source:** {contact.get('source', 'N/A')}")
+                            
+                            # Save to database
+                            if st.button("💾 Save All Contacts to Database", use_container_width=True):
+                                with st.spinner("Saving contacts..."):
+                                    stats = bulk_save_contacts(contacts)
+                                    st.success(f"Saved {stats['saved']} contacts! (Skipped {stats['skipped']} duplicates)")
+                                    st.rerun()
+                        else:
+                            st.warning("No contacts found. Try a different search query.")
+                    
+                    except Exception as e:
+                        st.error(f"Error during discovery: {str(e)}")
+                        st.info("Try a different search query or check your API configuration.")
+    
+    with tab2:
+        st.subheader("Manage Contacts")
+        
+        # Filter options
+        col1, col2 = st.columns([3, 1])
+        
+        with col1:
+            status_filter = st.selectbox(
+                "Filter by Status",
+                ["All", "active", "contacted", "bounced", "unsubscribed"],
+                index=0
+            )
+        
+        with col2:
+            if st.button("🔄 Refresh", use_container_width=True):
+                st.rerun()
+        
+        # Get contacts from database
+        try:
+            filter_val = None if status_filter == "All" else status_filter
+            contacts = get_all_email_contacts(status=filter_val)
+            
+            if contacts:
+                st.info(f"Total contacts: {len(contacts)}")
+                
+                # Display contacts in a table
+                for contact in contacts:
+                    with st.expander(f"{contact['company_name']} - {contact['email']}"):
+                        col1, col2, col3 = st.columns([2, 2, 1])
+                        
+                        with col1:
+                            st.write(f"**Email:** {contact['email']}")
+                            st.write(f"**Company:** {contact['company_name']}")
+                            st.write(f"**Website:** {contact.get('website', 'N/A')}")
+                        
+                        with col2:
+                            st.write(f"**Country:** {contact.get('country', 'N/A')}")
+                            st.write(f"**Status:** {contact['status']}")
+                            st.write(f"**Source:** {contact.get('source', 'N/A')}")
+                        
+                        with col3:
+                            # Update status
+                            new_status = st.selectbox(
+                                "Status",
+                                ["active", "contacted", "bounced", "unsubscribed"],
+                                index=["active", "contacted", "bounced", "unsubscribed"].index(contact['status']),
+                                key=f"status_{contact['id']}"
+                            )
+                            
+                            if st.button("Update", key=f"update_{contact['id']}"):
+                                if update_email_contact_status(contact['id'], new_status):
+                                    st.success("Status updated!")
+                                    st.rerun()
+                            
+                            if st.button("🗑️ Delete", key=f"delete_{contact['id']}"):
+                                if delete_email_contact(contact['id']):
+                                    st.success("Contact deleted!")
+                                    st.rerun()
+                
+                # Export to CSV
+                if st.button("📥 Export to CSV", use_container_width=True):
+                    import io
+                    output = io.StringIO()
+                    output.write("Email,Company,Website,Country,Industry,Status,Source\n")
+                    for contact in contacts:
+                        output.write(f"{contact['email']},{contact['company_name']},{contact.get('website', '')},{contact.get('country', '')},{contact.get('industry', '')},{contact['status']},{contact.get('source', '')}\n")
+                    
+                    st.download_button(
+                        label="Download CSV",
+                        data=output.getvalue(),
+                        file_name=f"contacts_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                        mime="text/csv"
+                    )
+            else:
+                st.info("No contacts found. Use the 'Find Contacts' tab to discover new leads.")
+        
+        except Exception as e:
+            st.error(f"Error loading contacts: {str(e)}")
+    
+    with tab3:
+        st.subheader("Create Email Campaign")
+        
+        # Campaign name
+        campaign_name = st.text_input(
+            "Campaign Name",
+            placeholder="e.g., Q1 Partnership Outreach",
+            help="Give your campaign a memorable name"
+        )
+        
+        # Subject line
+        subject = st.text_input(
+            "Email Subject",
+            placeholder="e.g., Partnership Opportunity with Your Company",
+            help="The subject line for your email"
+        )
+        
+        # Template selection
+        st.markdown("**Email Template**")
+        
+        templates = get_default_templates()
+        template_names = list(templates.keys())
+        
+        col1, col2 = st.columns([1, 3])
+        
+        with col1:
+            selected_template = st.selectbox(
+                "Choose Template",
+                ["Custom"] + template_names,
+                help="Select a pre-built template or create your own"
+            )
+        
+        with col2:
+            if selected_template != "Custom":
+                template_content = templates[selected_template]
+                st.info(f"Using {selected_template} template")
+            else:
+                template_content = ""
+        
+        # Email content editor
+        email_content = st.text_area(
+            "Email Content",
+            value=template_content,
+            height=300,
+            help="Use {{company_name}}, {{first_name}}, {{email}}, {{website}}, {{country}} for personalization"
+        )
+        
+        # Preview
+        if email_content:
+            st.markdown("**Preview (with sample data)**")
+            sample_contact = {
+                'company_name': 'Acme Corp',
+                'first_name': 'John',
+                'email': 'john@acme.com',
+                'website': 'https://acme.com',
+                'country': 'Denmark'
+            }
+            preview = personalize_email(email_content, sample_contact)
+            st.markdown(f"```\n{preview}\n```")
+        
+        # Save campaign
+        if st.button("💾 Save Campaign", type="primary", use_container_width=True):
+            if not campaign_name:
+                st.error("Please enter a campaign name")
+            elif not subject:
+                st.error("Please enter an email subject")
+            elif not email_content:
+                st.error("Please enter email content")
+            else:
+                try:
+                    campaign_id = save_email_campaign(campaign_name, subject, email_content)
+                    if campaign_id:
+                        st.success(f"✅ Campaign '{campaign_name}' saved! Go to 'Send Campaign' tab to send it.")
+                    else:
+                        st.error("Failed to save campaign")
+                except Exception as e:
+                    st.error(f"Error saving campaign: {str(e)}")
+    
+    with tab4:
+        st.subheader("Send Email Campaign")
+        
+        # Get saved campaigns
+        try:
+            campaigns = get_all_email_campaigns()
+            
+            if campaigns:
+                # Campaign selection
+                campaign_names = [f"{c['name']} (ID: {c['id']})" for c in campaigns]
+                selected_campaign_str = st.selectbox(
+                    "Select Campaign",
+                    campaign_names,
+                    help="Choose a saved campaign to send"
+                )
+                
+                # Extract campaign ID
+                campaign_id = int(selected_campaign_str.split("ID: ")[1].rstrip(")"))
+                campaign = next(c for c in campaigns if c['id'] == campaign_id)
+                
+                # Display campaign details
+                st.markdown(f"**Campaign:** {campaign['name']}")
+                st.markdown(f"**Subject:** {campaign['subject']}")
+                
+                with st.expander("View Email Template"):
+                    st.text(campaign['template'])
+                
+                # Get active contacts
+                contacts = get_all_email_contacts(status='active')
+                
+                if contacts:
+                    st.info(f"Found {len(contacts)} active contacts")
+                    
+                    # Contact selection
+                    all_contacts = st.checkbox("Send to all active contacts", value=True)
+                    
+                    if not all_contacts:
+                        selected_emails = st.multiselect(
+                            "Select Recipients",
+                            [f"{c['company_name']} ({c['email']})" for c in contacts]
+                        )
+                        contact_ids = [
+                            contacts[i]['id'] 
+                            for i, c in enumerate(contacts) 
+                            if f"{c['company_name']} ({c['email']})" in selected_emails
+                        ]
+                    else:
+                        contact_ids = [c['id'] for c in contacts]
+                    
+                    st.markdown(f"**Recipients:** {len(contact_ids)} contacts")
+                    
+                    # Test email
+                    st.markdown("---")
+                    st.markdown("**Send Test Email**")
+                    
+                    col1, col2 = st.columns([3, 1])
+                    
+                    with col1:
+                        test_email = st.text_input(
+                            "Test Email Address",
+                            placeholder="your@email.com",
+                            help="Send a test email to yourself first"
+                        )
+                    
+                    with col2:
+                        if st.button("📧 Send Test", use_container_width=True):
+                            if not test_email:
+                                st.error("Please enter a test email address")
+                            else:
+                                with st.spinner("Sending test email..."):
+                                    try:
+                                        result = send_test_email(
+                                            campaign['template'],
+                                            campaign['subject'],
+                                            test_email
+                                        )
+                                        if result:
+                                            st.success(f"✅ Test email sent to {test_email}!")
+                                        else:
+                                            st.error("Failed to send test email")
+                                    except Exception as e:
+                                        st.error(f"Error: {str(e)}")
+                    
+                    # Send campaign
+                    st.markdown("---")
+                    st.markdown("**Send Campaign**")
+                    
+                    if not contact_ids:
+                        st.warning("Please select at least one recipient")
+                    else:
+                        if st.button(f"🚀 Send to {len(contact_ids)} Recipients", type="primary", use_container_width=True):
+                            # Check for SendGrid API key
+                            if 'SENDGRID_API_KEY' not in st.secrets:
+                                st.error("⚠️ SendGrid API key not configured. Add SENDGRID_API_KEY to Streamlit secrets.")
+                            else:
+                                with st.spinner(f"Sending emails to {len(contact_ids)} recipients..."):
+                                    progress_bar = st.progress(0)
+                                    status_text = st.empty()
+                                    
+                                    try:
+                                        stats = send_campaign(
+                                            campaign_id,
+                                            contact_ids,
+                                            campaign['subject'],
+                                            campaign['template'],
+                                            batch_size=50
+                                        )
+                                        
+                                        progress_bar.progress(100)
+                                        
+                                        # Display results
+                                        st.success("✅ Campaign sending complete!")
+                                        
+                                        col1, col2, col3 = st.columns(3)
+                                        
+                                        with col1:
+                                            st.metric("✅ Sent", stats['sent'])
+                                        
+                                        with col2:
+                                            st.metric("❌ Failed", stats['failed'])
+                                        
+                                        with col3:
+                                            st.metric("⏭️ Skipped", stats['skipped'])
+                                        
+                                        if stats['failed'] > 0:
+                                            st.warning("Some emails failed to send. Check contact email addresses.")
+                                    
+                                    except Exception as e:
+                                        st.error(f"Error sending campaign: {str(e)}")
+                else:
+                    st.warning("No active contacts found. Add contacts in the 'Find Contacts' or 'Contact List' tabs.")
+            else:
+                st.info("No campaigns found. Create a campaign in the 'Create Campaign' tab first.")
+        
+        except Exception as e:
+            st.error(f"Error loading campaigns: {str(e)}")
         - `media/` - Selected images for campaigns
         - `logs/` - System logs
         """)
@@ -1401,7 +1778,7 @@ def main():
         
         # Get current page and convert to title case for radio button
         current_page = st.session_state.page
-        page_options = ["Dashboard", "Marketing Strategy", "Chat", "Drafts", "Schedule", "Settings"]
+        page_options = ["Dashboard", "Marketing Strategy", "Chat", "Drafts", "Schedule", "Email Campaigns", "Settings"]
         
         # Find the index of the current page
         try:
@@ -1438,6 +1815,8 @@ def main():
         show_drafts_page()
     elif current_page == 'schedule':
         show_schedule_page()
+    elif current_page == 'email campaigns':
+        show_email_campaigns_page()
     elif current_page == 'settings':
         show_settings_page()
 
