@@ -1495,6 +1495,50 @@ def show_email_campaigns_page():
     with tab2:
         st.subheader("Manage Contacts")
         
+        # Manual contact entry
+        with st.expander("➕ Add Contact Manually"):
+            st.write("Can't find emails automatically? Add them manually here.")
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                manual_email = st.text_input("Email Address*", placeholder="contact@company.com")
+                manual_company = st.text_input("Company Name*", placeholder="Wellness Center Copenhagen")
+                manual_website = st.text_input("Website", placeholder="https://example.com")
+            
+            with col2:
+                manual_country = st.text_input("Country", placeholder="Denmark")
+                manual_industry = st.text_input("Industry", placeholder="Wellness/Spa")
+                manual_source = st.text_input("Source", value="manual_entry")
+            
+            if st.button("💾 Add Contact", use_container_width=True):
+                if not manual_email or not manual_company:
+                    st.error("Email and Company Name are required")
+                else:
+                    try:
+                        from elbitat_agent.database import init_database, save_email_contact
+                        init_database()
+                        
+                        success = save_email_contact(
+                            email=manual_email,
+                            company_name=manual_company,
+                            website=manual_website,
+                            country=manual_country,
+                            industry=manual_industry,
+                            source=manual_source
+                        )
+                        
+                        if success:
+                            st.success(f"✅ Added {manual_email} to contacts!")
+                            st.balloons()
+                            st.rerun()
+                        else:
+                            st.error("Failed to add contact (may be duplicate)")
+                    except Exception as e:
+                        st.error(f"Error: {str(e)}")
+        
+        st.divider()
+        
         # Debug info
         from elbitat_agent.database import get_db_path
         import sqlite3
