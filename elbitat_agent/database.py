@@ -79,7 +79,7 @@ def init_database():
             website TEXT,
             country TEXT,
             industry TEXT,
-            status TEXT DEFAULT 'new',
+            status TEXT DEFAULT 'active',
             source TEXT,
             notes TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

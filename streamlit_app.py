@@ -1466,7 +1466,7 @@ def show_email_campaigns_page():
         with col1:
             status_filter = st.selectbox(
                 "Filter by Status",
-                ["All", "active", "contacted", "bounced", "unsubscribed"],
+                ["All", "new", "active", "contacted", "bounced", "unsubscribed"],
                 index=0
             )
         
@@ -1484,7 +1484,7 @@ def show_email_campaigns_page():
             contacts = get_all_email_contacts(status=filter_val)
             
             if contacts:
-                st.info(f"Total contacts: {len(contacts)}")
+                st.info(f"📊 Total contacts: {len(contacts)}")
                 
                 # Display contacts in a table
                 for contact in contacts:
@@ -1503,10 +1503,17 @@ def show_email_campaigns_page():
                         
                         with col3:
                             # Update status
+                            status_options = ["new", "active", "contacted", "bounced", "unsubscribed"]
+                            current_status = contact.get('status', 'new')
+                            try:
+                                status_index = status_options.index(current_status)
+                            except ValueError:
+                                status_index = 0
+                            
                             new_status = st.selectbox(
                                 "Status",
-                                ["active", "contacted", "bounced", "unsubscribed"],
-                                index=["active", "contacted", "bounced", "unsubscribed"].index(contact['status']),
+                                status_options,
+                                index=status_index,
                                 key=f"status_{contact['id']}"
                             )
                             
@@ -1535,7 +1542,14 @@ def show_email_campaigns_page():
                         mime="text/csv"
                     )
             else:
-                st.info("No contacts found. Use the 'Find Contacts' tab to discover new leads.")
+                st.warning(f"No contacts found with status filter: '{status_filter}'")
+                st.info("""
+                **Troubleshooting:**
+                - Try selecting "All" status filter to see all contacts
+                - Newly saved contacts have 'new' or 'active' status by default
+                - Use the 'Find Contacts' tab to discover new leads
+                - Check if contacts were successfully saved (you should see a success message)
+                """)
         
         except Exception as e:
             st.error(f"Error loading contacts: {str(e)}")
