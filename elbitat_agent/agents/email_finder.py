@@ -4,7 +4,7 @@ import re
 import requests
 from bs4 import BeautifulSoup
 from typing import List, Dict, Optional
-from urllib.parse import urlparse, urljoin
+from urllib.parse import urlparse, urljoin, quote, unquote
 import streamlit as st
 
 
@@ -69,41 +69,94 @@ def search_companies(query: str, country: str = None, limit: int = 10) -> List[D
 
 
 def _fallback_search(query: str, country: str = None, limit: int = 10) -> List[Dict]:
-    """Fallback search using DuckDuckGo HTML scraping (no API needed)."""
+    """Fallback search using multiple methods (no API needed)."""
     try:
-        # Build DuckDuckGo search URL
+        # Build search query
         search_query = query
         if country:
-            search_query += f" {country}"
+            # Add country name and common TLD
+            country_map = {
+                'denmark': 'Denmark .dk',
+                'sweden': 'Sweden .se',
+                'norway': 'Norway .no',
+                'germany': 'Germany .de',
+                'uk': 'United Kingdom .uk',
+                'usa': 'USA .com',
+            }
+            country_lower = country.lower()
+            search_query += f" {country_map.get(country_lower, country)}"
         
-        url = f"https://html.duckduckgo.com/html/?q={requests.utils.quote(search_query)}"
+        # Try DuckDuckGo Lite (more reliable)
+        url = f"https://lite.duckduckgo.com/lite/?q={quote(search_query)}"
         
         headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         }
         
-        response = requests.get(url, headers=headers, timeout=10)
+        response = requests.get(url, headers=headers, timeout=15)
         soup = BeautifulSoup(response.text, 'html.parser')
         
         results = []
-        result_divs = soup.find_all('div', class_='result', limit=limit)
         
-        for div in result_divs:
-            title_tag = div.find('a', class_='result__a')
-            snippet_tag = div.find('a', class_='result__snippet')
+        # Parse DDG Lite results (different structure)
+        links = soup.find_all('a', href=True)
+        
+        for link in links:
+            href = link.get('href', '')
+            text = link.get_text(strip=True)
             
-            if title_tag:
+            # Skip internal DDG links
+            if 'duckduckgo.com' in href or not href.startswith('http'):
+                continue
+            
+            # Get the actual URL (DDG redirects)
+            if '/l/?uddg=' in href or '/l/?kh=-1' in href:
+                # Extract actual URL from DDG redirect
+                try:
+                    actual_url = href.split('uddg=')[1].split('&')[0] if 'uddg=' in href else href
+                    # URL decode
+                    actual_url = unquote(actual_url)
+                    
+                    if actual_url.startswith('http') and len(text) > 5:
+                        results.append({
+                            'company_name': text[:100],  # Limit length
+                            'website': actual_url,
+                            'description': ''
+                        })
+                        
+                        if len(results) >= limit:
+                            break
+                except:
+                    continue
+        
+        # If we didn't get enough results, add some common business directories
+        if len(results) < 3 and country:
+            country_lower = country.lower()
+            directory_sites = []
+            
+            if 'denmark' in country_lower or 'dk' in country_lower:
+                directory_sites = [
+                    f"https://www.proff.dk/bransjes%C3%B8k/{query.replace(' ', '-')}",
+                    f"https://www.krak.dk/",
+                ]
+            
+            for site in directory_sites[:limit - len(results)]:
                 results.append({
-                    'company_name': title_tag.get_text(strip=True),
-                    'website': title_tag.get('href', ''),
-                    'description': snippet_tag.get_text(strip=True) if snippet_tag else ''
+                    'company_name': f"{query.title()} Directory",
+                    'website': site,
+                    'description': 'Business directory'
                 })
         
         return results
         
     except Exception as e:
         print(f"Error in fallback search: {e}")
-        return []
+        # Return at least something to work with
+        return [{
+            'company_name': f"{query.title()} (Manual Entry)",
+            'website': f"https://www.google.com/search?q={quote(query + ' ' + (country or ''))}",
+            'description': 'Could not auto-discover. Click to search manually.'
+        }]
 
 
 def extract_emails_from_website(website_url: str, max_pages: int = 3) -> List[str]:
