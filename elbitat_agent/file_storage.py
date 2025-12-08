@@ -83,6 +83,31 @@ def save_draft(draft: AdDraft, filename: str | None = None) -> Path:
     return path
 
 
+def save_draft_dict(draft_dict: Dict, filename: str) -> bool:
+    """Save a draft dictionary directly to database and file system."""
+    # Sanitize filename
+    filename = filename.replace("/", "_").replace("\\", "_")
+    
+    # Save to database if available
+    if USE_DATABASE:
+        save_draft_to_db(filename, draft_dict)
+    
+    # Also save to file system as backup
+    _ensure_dirs()
+    base = get_workspace_path()
+    drafts_dir = base / "drafts"
+    drafts_dir.mkdir(parents=True, exist_ok=True)
+    path = drafts_dir / filename
+    
+    try:
+        with path.open("w", encoding="utf-8") as f:
+            json.dump(draft_dict, f, indent=2, ensure_ascii=False)
+        return True
+    except Exception as e:
+        print(f"Error saving draft: {e}")
+        return USE_DATABASE  # Return True if saved to DB
+
+
 def load_all_drafts() -> List[Dict]:
     """Load all drafts from database or file system."""
     if USE_DATABASE:

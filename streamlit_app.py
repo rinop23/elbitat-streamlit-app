@@ -20,7 +20,11 @@ from yaml.loader import SafeLoader
 import copy
 
 from elbitat_agent.paths import get_workspace_path
-from elbitat_agent.file_storage import load_all_requests, list_request_files
+from elbitat_agent.file_storage import (
+    load_all_requests, list_request_files,
+    load_all_drafts, save_request, save_scheduled_post, delete_draft, delete_scheduled_post,
+    load_all_scheduled_posts, load_all_requests_dict, save_draft_dict
+)
 from elbitat_agent.agents.orchestrator import generate_drafts_for_all_requests
 from elbitat_agent.agents.auto_poster import auto_post_draft, check_api_configuration
 from elbitat_agent.models import AdRequest, AdDraft
@@ -776,9 +780,8 @@ def show_draft_detail_modal():
                                 new_copy = generate_ai_content(updated_request)
                                 draft_data['copy_by_platform'] = new_copy
                                 
-                                # Save updated draft
-                                with open(draft_file, 'w', encoding='utf-8') as f:
-                                    json.dump(draft_data, f, indent=2, ensure_ascii=False)
+                                # Save updated draft to database
+                                save_draft_dict(draft_data, draft_file.name)
                                 
                                 st.success("✅ Content regenerated!")
                                 st.rerun()
@@ -844,9 +847,8 @@ def show_draft_detail_modal():
                             if selected_new_images:
                                 draft_data['selected_images'] = selected_new_images
                                 
-                                # Save updated draft
-                                with open(draft_file, 'w', encoding='utf-8') as f:
-                                    json.dump(draft_data, f, indent=2, ensure_ascii=False)
+                                # Save updated draft to database
+                                save_draft_dict(draft_data, draft_file.name)
                                 
                                 st.success(f"✅ Updated with {len(selected_new_images)} images!")
                                 st.session_state[f'show_image_selector_{draft_name}'] = False
