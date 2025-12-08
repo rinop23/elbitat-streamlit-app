@@ -126,35 +126,20 @@ def initialize_auth():
     """Initialize authentication system."""
     config = load_auth_config()
     
-    # Convert to plain dict to avoid modifying read-only st.secrets
-    # streamlit-authenticator tries to track failed login attempts by modifying the credentials dict
-    if hasattr(config, 'to_dict'):
-        config_dict = config.to_dict()
-    else:
-        # Manual conversion for nested secrets
-        config_dict = {
-            'credentials': {
-                'usernames': {}
-            },
-            'cookie': {
-                'name': str(config['cookie']['name']),
-                'key': str(config['cookie']['key']),
-                'expiry_days': int(config['cookie']['expiry_days'])
-            }
-        }
-        # Copy usernames
-        for username, user_data in config['credentials']['usernames'].items():
-            config_dict['credentials']['usernames'][str(username)] = {
-                'name': str(user_data['name']),
-                'password': str(user_data['password'])
-            }
+    # Create a mutable deep copy of credentials to avoid "Secrets does not support item assignment" error
+    # The authenticator tries to write failed login attempts to the credentials dict
+    import copy
+    credentials = copy.deepcopy(config['credentials'])
+    cookie_name = str(config['cookie']['name'])
+    cookie_key = str(config['cookie']['key'])
+    cookie_expiry = int(config['cookie']['expiry_days'])
     
     # Updated for streamlit-authenticator 0.4.x - removed preauthorized parameter
     authenticator = stauth.Authenticate(
-        config_dict['credentials'],
-        config_dict['cookie']['name'],
-        config_dict['cookie']['key'],
-        config_dict['cookie']['expiry_days']
+        credentials,
+        cookie_name,
+        cookie_key,
+        cookie_expiry
     )
     
     return authenticator
