@@ -1376,6 +1376,7 @@ def show_settings_page():
         - `drafts/` - Generated draft content
         - `scheduled/` - Approved posts for publishing
         - `posted/` - Published post results
+        """)
 
 
 def show_email_campaigns_page():
