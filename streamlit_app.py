@@ -1661,84 +1661,22 @@ def show_email_campaigns_page():
                     
                     st.markdown(f"**Recipients:** {len(contact_ids)} contacts")
                     
-                    # Test email
+                    # Email sending disabled
                     st.markdown("---")
-                    st.markdown("**Send Test Email**")
+                    st.info("📧 **Email Sending Feature**")
+                    st.warning("""
+                    Email sending is currently disabled. The system can discover and save contacts, 
+                    but sending functionality requires email service configuration (SendGrid, Gmail SMTP, etc.).
                     
-                    col1, col2 = st.columns([3, 1])
+                    **What you can do now:**
+                    - ✅ Search and discover business contacts
+                    - ✅ Save contacts to database
+                    - ✅ Create and save email campaigns
+                    - ✅ Export contact lists to CSV
                     
-                    with col1:
-                        test_email = st.text_input(
-                            "Test Email Address",
-                            placeholder="your@email.com",
-                            help="Send a test email to yourself first"
-                        )
-                    
-                    with col2:
-                        if st.button("📧 Send Test", use_container_width=True):
-                            if not test_email:
-                                st.error("Please enter a test email address")
-                            else:
-                                with st.spinner("Sending test email..."):
-                                    try:
-                                        result = send_test_email(
-                                            campaign['template'],
-                                            campaign['subject'],
-                                            test_email
-                                        )
-                                        if result:
-                                            st.success(f"✅ Test email sent to {test_email}!")
-                                        else:
-                                            st.error("Failed to send test email")
-                                    except Exception as e:
-                                        st.error(f"Error: {str(e)}")
-                    
-                    # Send campaign
-                    st.markdown("---")
-                    st.markdown("**Send Campaign**")
-                    
-                    if not contact_ids:
-                        st.warning("Please select at least one recipient")
-                    else:
-                        if st.button(f"🚀 Send to {len(contact_ids)} Recipients", type="primary", use_container_width=True):
-                            # Check for SendGrid API key
-                            if 'SENDGRID_API_KEY' not in st.secrets:
-                                st.error("⚠️ SendGrid API key not configured. Add SENDGRID_API_KEY to Streamlit secrets.")
-                            else:
-                                with st.spinner(f"Sending emails to {len(contact_ids)} recipients..."):
-                                    progress_bar = st.progress(0)
-                                    status_text = st.empty()
-                                    
-                                    try:
-                                        stats = send_campaign(
-                                            campaign_id,
-                                            contact_ids,
-                                            campaign['subject'],
-                                            campaign['template'],
-                                            batch_size=50
-                                        )
-                                        
-                                        progress_bar.progress(100)
-                                        
-                                        # Display results
-                                        st.success("✅ Campaign sending complete!")
-                                        
-                                        col1, col2, col3 = st.columns(3)
-                                        
-                                        with col1:
-                                            st.metric("✅ Sent", stats['sent'])
-                                        
-                                        with col2:
-                                            st.metric("❌ Failed", stats['failed'])
-                                        
-                                        with col3:
-                                            st.metric("⏭️ Skipped", stats['skipped'])
-                                        
-                                        if stats['failed'] > 0:
-                                            st.warning("Some emails failed to send. Check contact email addresses.")
-                                    
-                                    except Exception as e:
-                                        st.error(f"Error sending campaign: {str(e)}")
+                    **To enable email sending:**
+                    Configure an email service provider in the Settings or contact support.
+                    """)
                 else:
                     st.warning("No active contacts found. Add contacts in the 'Find Contacts' or 'Contact List' tabs.")
             else:
