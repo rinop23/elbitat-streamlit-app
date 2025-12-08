@@ -1420,8 +1420,11 @@ def show_email_campaigns_page():
                         # Discover contacts
                         contacts = discover_contacts(search_query, country, max_companies)
                         
+                        # Store in session state
+                        st.session_state['discovered_contacts'] = contacts
+                        
                         if contacts:
-                            st.success(f"✅ Found {len(contacts)} contacts!")
+                            st.success(f"✅ Found {len(contacts)} contacts with emails!")
                             
                             # Display results in a table
                             st.subheader("Discovered Contacts")
@@ -1440,34 +1443,50 @@ def show_email_campaigns_page():
                                         st.write(f"**Industry:** {contact.get('industry', 'N/A')}")
                                         st.write(f"**Source:** {contact.get('source', 'N/A')}")
                             
+                            # Store contacts in session state for saving
+                            st.session_state['discovered_contacts'] = contacts
+                            
                             # Save to database
                             if st.button("💾 Save All Contacts to Database", use_container_width=True):
-                                with st.spinner("Saving contacts..."):
-                                    try:
-                                        # Ensure database is initialized
-                                        from elbitat_agent.database import init_database, get_db_path
-                                        init_database()
-                                        
-                                        db_path = get_db_path()
-                                        st.info(f"Database: {db_path}")
-                                        
-                                        stats = bulk_save_contacts(contacts)
-                                        
-                                        if stats['saved'] > 0:
-                                            st.success(f"✅ Saved {stats['saved']} contacts! (Skipped {stats['skipped']} duplicates)")
-                                        elif stats['skipped'] > 0:
-                                            st.warning(f"All {stats['skipped']} contacts were duplicates (already in database)")
-                                        else:
-                                            st.error(f"Failed to save contacts. Errors: {stats.get('errors', 0)}")
-                                        
-                                        st.balloons()
-                                        st.rerun()
-                                    except Exception as e:
-                                        st.error(f"Error saving contacts: {str(e)}")
-                                        import traceback
-                                        st.code(traceback.format_exc())
+                                contacts_to_save = st.session_state.get('discovered_contacts', [])
+                                
+                                if not contacts_to_save:
+                                    st.error("No contacts to save. Please run discovery first.")
+                                else:
+                                    with st.spinner(f"Saving {len(contacts_to_save)} contacts..."):
+                                        try:
+                                            # Ensure database is initialized
+                                            from elbitat_agent.database import init_database, get_db_path
+                                            init_database()
+                                            
+                                            db_path = get_db_path()
+                                            st.info(f"Database: {db_path}")
+                                            st.info(f"Contacts to save: {len(contacts_to_save)}")
+                                            
+                                            # Show first contact as example
+                                            if contacts_to_save:
+                                                st.json(contacts_to_save[0])
+                                            
+                                            stats = bulk_save_contacts(contacts_to_save)
+                                            
+                                            st.info(f"Save stats: {stats}")
+                                            
+                                            if stats['saved'] > 0:
+                                                st.success(f"✅ Saved {stats['saved']} contacts! (Skipped {stats['skipped']} duplicates, Errors: {stats.get('errors', 0)})")
+                                                st.balloons()
+                                                st.rerun()
+                                            elif stats['skipped'] > 0:
+                                                st.warning(f"All {stats['skipped']} contacts were duplicates (already in database)")
+                                            elif stats['errors'] > 0:
+                                                st.error(f"Failed to save contacts. Errors: {stats['errors']}")
+                                            else:
+                                                st.error("No contacts were saved. Check the logs for details.")
+                                        except Exception as e:
+                                            st.error(f"Error saving contacts: {str(e)}")
+                                            import traceback
+                                            st.code(traceback.format_exc())
                         else:
-                            st.warning("No contacts found. Try a different search query.")
+                            st.warning(f"No email contacts found. Found {len(contacts)} companies but no emails extracted from their websites. Try a different search query or the companies may not have contact emails on their websites.")
                     
                     except Exception as e:
                         st.error(f"Error during discovery: {str(e)}")

@@ -307,8 +307,18 @@ def bulk_save_contacts(contacts: List[Dict]) -> Dict[str, int]:
     
     for contact in contacts:
         try:
+            email = contact.get('email')
+            
+            # Skip if no email
+            if not email:
+                print(f"Skipping contact with no email: {contact.get('company_name')}")
+                stats['skipped'] += 1
+                continue
+            
+            print(f"Attempting to save: {email} - {contact.get('company_name')}")
+            
             success = save_email_contact(
-                email=contact.get('email'),
+                email=email,
                 company_name=contact.get('company_name'),
                 website=contact.get('website'),
                 country=contact.get('country'),
@@ -318,11 +328,16 @@ def bulk_save_contacts(contacts: List[Dict]) -> Dict[str, int]:
             
             if success:
                 stats['saved'] += 1
+                print(f"  ✓ Saved successfully")
             else:
                 stats['skipped'] += 1
+                print(f"  ⊘ Skipped (duplicate or failed)")
                 
         except Exception as e:
             print(f"Error saving {contact.get('email')}: {e}")
+            import traceback
+            traceback.print_exc()
             stats['errors'] += 1
     
+    print(f"\nBulk save complete: {stats}")
     return stats
