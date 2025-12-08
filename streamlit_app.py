@@ -126,10 +126,20 @@ def initialize_auth():
     """Initialize authentication system."""
     config = load_auth_config()
     
-    # Create a mutable deep copy of credentials to avoid "Secrets does not support item assignment" error
+    # Manually convert nested Secrets to plain dict to avoid "Secrets does not support item assignment" error
     # The authenticator tries to write failed login attempts to the credentials dict
-    import copy
-    credentials = copy.deepcopy(config['credentials'])
+    # Cannot use copy.deepcopy on Secrets objects (causes recursion error)
+    credentials = {
+        'usernames': {}
+    }
+    
+    # Convert each user to plain dict
+    for username, user_data in config['credentials']['usernames'].items():
+        credentials['usernames'][str(username)] = {
+            'name': str(user_data['name']),
+            'password': str(user_data['password'])
+        }
+    
     cookie_name = str(config['cookie']['name'])
     cookie_key = str(config['cookie']['key'])
     cookie_expiry = int(config['cookie']['expiry_days'])
