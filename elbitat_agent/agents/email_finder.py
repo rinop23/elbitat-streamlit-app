@@ -299,11 +299,11 @@ def bulk_save_contacts(contacts: List[Dict]) -> Dict[str, int]:
     """Save multiple discovered contacts to the database.
     
     Returns:
-        Dictionary with 'saved' and 'duplicate' counts
+        Dictionary with 'saved', 'skipped', and 'errors' counts
     """
     from .database import save_email_contact
     
-    stats = {'saved': 0, 'duplicates': 0, 'errors': 0}
+    stats = {'saved': 0, 'skipped': 0, 'errors': 0}
     
     for contact in contacts:
         try:
@@ -319,7 +319,7 @@ def bulk_save_contacts(contacts: List[Dict]) -> Dict[str, int]:
             if success:
                 stats['saved'] += 1
             else:
-                stats['duplicates'] += 1
+                stats['skipped'] += 1
                 
         except Exception as e:
             print(f"Error saving {contact.get('email')}: {e}")

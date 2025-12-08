@@ -1443,6 +1443,10 @@ def show_email_campaigns_page():
                             # Save to database
                             if st.button("💾 Save All Contacts to Database", use_container_width=True):
                                 with st.spinner("Saving contacts..."):
+                                    # Ensure database is initialized
+                                    from elbitat_agent.database import init_database
+                                    init_database()
+                                    
                                     stats = bulk_save_contacts(contacts)
                                     st.success(f"Saved {stats['saved']} contacts! (Skipped {stats['skipped']} duplicates)")
                                     st.rerun()
@@ -1472,6 +1476,10 @@ def show_email_campaigns_page():
         
         # Get contacts from database
         try:
+            # Ensure database is initialized
+            from elbitat_agent.database import init_database
+            init_database()
+            
             filter_val = None if status_filter == "All" else status_filter
             contacts = get_all_email_contacts(status=filter_val)
             
