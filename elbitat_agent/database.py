@@ -7,6 +7,19 @@ from datetime import datetime
 from typing import Dict, List, Optional
 import streamlit as st
 
+# Try to import Supabase functions
+try:
+    from .supabase_db import (
+        get_supabase_client,
+        save_draft_to_supabase, get_all_drafts_from_supabase, delete_draft_from_supabase,
+        save_request_to_supabase, get_all_requests_from_supabase, delete_request_from_supabase,
+        save_scheduled_post_to_supabase, get_all_scheduled_posts_from_supabase, delete_scheduled_post_from_supabase
+    )
+    USE_SUPABASE = True
+except ImportError:
+    USE_SUPABASE = False
+    print("ℹ️ Supabase not available, using SQLite")
+
 
 def get_db_path() -> Path:
     """Get the database file path.
@@ -190,7 +203,14 @@ def delete_request_from_db(filename: str) -> bool:
 # ===== DRAFT OPERATIONS =====
 
 def save_draft_to_db(filename: str, data: Dict) -> bool:
-    """Save a draft to the database."""
+    """Save a draft to the database (Supabase or SQLite)."""
+    # Try Supabase first if available and configured
+    if USE_SUPABASE:
+        client = get_supabase_client()
+        if client:
+            return save_draft_to_supabase(filename, data)
+    
+    # Fallback to SQLite
     try:
         db_path = get_db_path()
         conn = sqlite3.connect(str(db_path))
@@ -214,7 +234,14 @@ def save_draft_to_db(filename: str, data: Dict) -> bool:
 
 
 def get_all_drafts() -> List[Dict]:
-    """Get all drafts from the database."""
+    """Get all drafts from the database (Supabase or SQLite)."""
+    # Try Supabase first if available and configured
+    if USE_SUPABASE:
+        client = get_supabase_client()
+        if client:
+            return get_all_drafts_from_supabase()
+    
+    # Fallback to SQLite
     try:
         db_path = get_db_path()
         print(f"🗄️ Database path: {db_path}")
@@ -243,7 +270,14 @@ def get_all_drafts() -> List[Dict]:
 
 
 def delete_draft_from_db(filename: str) -> bool:
-    """Delete a draft from the database."""
+    """Delete a draft from the database (Supabase or SQLite)."""
+    # Try Supabase first if available and configured
+    if USE_SUPABASE:
+        client = get_supabase_client()
+        if client:
+            return delete_draft_from_supabase(filename)
+    
+    # Fallback to SQLite
     try:
         db_path = get_db_path()
         conn = sqlite3.connect(str(db_path))
