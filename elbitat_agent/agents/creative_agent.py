@@ -106,31 +106,78 @@ def parse_instagram_content(ai_content: str, request: AdRequest) -> Dict[str, st
     """Parse Instagram content from AI response."""
     lines = ai_content.split('\n')
     caption = ""
-    hashtags = "#Elbitat #ElbaIsland"
+    hashtags = ""
     
+    # Find Instagram section (flexible matching)
+    ig_start = -1
     for i, line in enumerate(lines):
-        if 'caption:' in line.lower() or ('instagram' in line.lower() and i < len(lines) - 1):
-            # Get next few lines as caption
-            caption_lines = []
-            for j in range(i + 1, min(i + 5, len(lines))):
-                if lines[j].strip() and not lines[j].strip().startswith('#') and 'hashtag' not in lines[j].lower():
-                    caption_lines.append(lines[j].strip())
-                elif lines[j].strip().startswith('#'):
+        if 'instagram' in line.lower() and (line.startswith('##') or line.startswith('**') or ':' in line):
+            ig_start = i
+            break
+    
+    if ig_start >= 0:
+        # Extract caption and hashtags
+        in_caption = False
+        in_hashtags = False
+        
+        for j in range(ig_start + 1, len(lines)):
+            line = lines[j].strip()
+            
+            # Stop at divider or next platform
+            if line.startswith('---') or (line.startswith('###') and any(p in line.lower() for p in ['facebook', 'tiktok'])):
+                break
+            
+            # Check for caption marker
+            if '**caption' in line.lower() and ':' in line:
+                in_caption = True
+                in_hashtags = False
+                # Check if caption is on the same line
+                text = line.split(':', 1)[1].strip()
+                if text and not text.startswith('**'):
+                    caption = text
+                    in_caption = False
+                continue
+            
+            # Check for hashtags marker
+            if '**hashtag' in line.lower() and ':' in line:
+                in_caption = False
+                in_hashtags = True
+                # Check if hashtags are on the same line
+                text = line.split(':', 1)[1].strip()
+                if text and text.startswith('#'):
+                    hashtags = text
+                    in_hashtags = False
+                continue
+            
+            # Collect caption from next line(s) if not yet captured
+            if in_caption and line and not caption:
+                if not line.startswith('**') and not line.startswith('#'):
+                    caption = line
+                    in_caption = False
+            
+            # Collect hashtags from next line if not yet captured
+            if in_hashtags and line:
+                if line.startswith('#'):
+                    hashtags = line
                     break
-            caption = ' '.join(caption_lines)
-            break
     
-    # Extract hashtags
-    for line in lines:
-        if line.strip().startswith('#'):
-            hashtags = line.strip()
-            break
-        elif 'hashtag' in line.lower() and '#' in line:
-            hashtags = line.split(':', 1)[1].strip() if ':' in line else line.strip()
-            break
+    # If hashtags weren't found separately, try to extract from caption
+    if not hashtags and caption and '#' in caption:
+        # Split caption and hashtags
+        parts = caption.split('#', 1)
+        if len(parts) == 2:
+            caption = parts[0].strip()
+            hashtags = '#' + parts[1]
     
-    if not caption:
-        caption = f"✨ {request.title} ✨\n\n{request.brief[:100]}..."
+    # Fallbacks
+    if not caption or len(caption) < 20:
+        caption = f"✨ {request.title} ✨\n\n{request.brief[:150] if len(request.brief) > 150 else request.brief}"
+    
+    if not hashtags:
+        hashtags = "#Elbitat #ElbaIsland #ItalyTravel #WellnessRetreat"
+    else:
+        # Clean up hashtags
+        hashtags = hashtags.replace('*', '').replace('###', '').strip()
     
     return {"caption": caption, "hashtags": hashtags}
 
@@ -140,7 +187,7 @@ def parse_facebook_content(ai_content: str, request: AdRequest) -> Dict[str, str
     lines = ai_content.split('\n')
     message = ""
     
-    # Try to find Facebook section
+    # Find Facebook section
     fb_start = -1
     for i, line in enumerate(lines):
         if 'facebook' in line.lower():
@@ -148,34 +195,35 @@ def parse_facebook_content(ai_content: str, request: AdRequest) -> Dict[str, str
             break
     
     if fb_start >= 0:
-        # Get lines after Facebook header until next platform or end
-        message_lines = []
+        # Extract message
+        in_message = False
+        
         for j in range(fb_start + 1, len(lines)):
             line = lines[j].strip()
-            # Stop at next platform section
-            if any(platform in line.lower() for platform in ['instagram', 'tiktok']) and ':' in line:
+            
+            # Stop at divider or next platform
+            if line.startswith('---') or (line.startswith('###') and 'tiktok' in line.lower()):
                 break
-            # Skip labels like "Message:" or "Caption:"
-            if line and not line.endswith(':') and not line.startswith('**'):
-                # Remove label if present (e.g., "Message: text" -> "text")
-                if ':' in line and len(line.split(':', 1)[0]) < 20:
-                    line = line.split(':', 1)[1].strip()
-                if line and not line.startswith('#'):
-                    message_lines.append(line)
-        
-        message = '\n'.join(message_lines).strip()
+            
+            # Check for message marker
+            if '**message' in line.lower() and ':' in line:
+                in_message = True
+                # Check if message is on the same line
+                text = line.split(':', 1)[1].strip()
+                if text and not text.startswith('**'):
+                    message = text
+                    break
+                continue
+            
+            # Collect message from next line if not yet captured
+            if in_message and line and not message:
+                if not line.startswith('**') and not line.startswith('###') and not line.startswith('#'):
+                    message = line
+                    break
     
+    # Fallback
     if not message or len(message) < 20:
-        # Fallback: use entire content if no clear structure
-        message = ai_content.strip()
-        # Remove any platform labels
-        for label in ['Instagram:', 'Facebook:', 'TikTok:', '**Instagram**', '**Facebook**', '**TikTok**']:
-            message = message.replace(label, '')
-        message = message.strip()
-        
-        # If still nothing useful, use request brief
-        if len(message) < 20:
-            message = f"{request.title}\n\n{request.brief}\n\nBook your stay at Elbitat Hotel on Elba Island."
+        message = f"{request.title}\n\n{request.brief}\n\nDiscover the perfect blend of luxury and wellness at Elbitat Hotel on Elba Island. Book your transformative retreat today!"
     
     return {"message": message}
 
@@ -186,25 +234,71 @@ def parse_tiktok_content(ai_content: str, request: AdRequest) -> Dict[str, str]:
     caption = ""
     script = ""
     
+    # Find TikTok section (flexible matching)
+    tt_start = -1
     for i, line in enumerate(lines):
-        if 'tiktok' in line.lower():
-            # Get caption and script
-            for j in range(i + 1, min(i + 8, len(lines))):
-                if 'caption' in lines[j].lower():
-                    caption = lines[j].split(':', 1)[1].strip() if ':' in lines[j] else ""
-                elif 'script' in lines[j].lower():
-                    script_lines = []
-                    for k in range(j + 1, min(j + 5, len(lines))):
-                        if lines[k].strip():
-                            script_lines.append(lines[k].strip())
-                    script = '\n'.join(script_lines)
-                    break
+        if 'tiktok' in line.lower() and (line.startswith('##') or line.startswith('**') or ':' in line):
+            tt_start = i
             break
     
-    if not caption:
-        caption = f"{request.title} 🏖️"
-    if not script:
-        script = f"Scene 1: Stunning view of Elbitat\nScene 2: {request.brief[:50]}\nScene 3: Call to action - book now!"
+    if tt_start >= 0:
+        script_lines = []
+        in_caption = False
+        in_script = False
+        
+        for j in range(tt_start + 1, len(lines)):
+            line = lines[j].strip()
+            
+            # Stop at divider
+            if line.startswith('---'):
+                break
+            
+            # Skip empty lines unless collecting script
+            if not line and not in_script:
+                continue
+            
+            # Check for caption marker
+            if '**caption' in line.lower() and ':' in line:
+                in_caption = True
+                in_script = False
+                # Check if caption is on same line
+                text = line.split(':', 1)[1].strip().replace('**', '').strip()
+                if text:  # Only if there's actual content, not just markdown
+                    caption = text
+                    in_caption = False
+                continue
+            
+            # Collect caption from next line if not yet captured
+            if in_caption and line and not caption:
+                caption = line.replace('**', '').strip()
+                in_caption = False
+                continue
+            
+            # Check for script marker
+            if ('**script' in line.lower() or 'script outline' in line.lower()) and ':' in line:
+                in_caption = False
+                in_script = True
+                # Check if script text on same line
+                text = line.split(':', 1)[1].strip()
+                if text:
+                    script_lines.append(text)
+                continue
+            
+            # Collect script lines
+            if in_script and line:
+                # Skip ### headers but keep content
+                if not line.startswith('###'):
+                    script_lines.append(line)
+        
+        if script_lines:
+            script = '\n'.join(script_lines)
+    
+    # Fallbacks
+    if not caption or len(caption) < 10:
+        caption = f"{request.title} 🏖️✨ #Elbitat #ElbaIsland"
+    
+    if not script or len(script) < 20:
+        script = f"Scene 1: Stunning aerial view of Elbitat Hotel on Elba Island\nScene 2: {request.brief[:80]}\nScene 3: Close-up of luxury amenities\nScene 4: Call to action - Book your stay today!"
     
     return {"caption": caption, "script": script}
 
