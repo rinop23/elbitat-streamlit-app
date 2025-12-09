@@ -301,7 +301,7 @@ def bulk_save_contacts(contacts: List[Dict]) -> Dict[str, int]:
     Returns:
         Dictionary with 'saved', 'skipped', and 'errors' counts
     """
-    from .database import save_email_contact
+    from ..database import save_email_contact
     
     stats = {'saved': 0, 'skipped': 0, 'errors': 0}
     
