@@ -1834,35 +1834,20 @@ def show_email_campaigns_page():
 
         st.divider()
 
-        # Campaign name (pre-filled if AI generated)
-        campaign_name = st.text_input(
-            "Campaign Name",
-            value=st.session_state.get('ai_generated_campaign_name', ''),
-            placeholder="e.g., Q1 Partnership Outreach",
-            help="Give your campaign a memorable name"
-        )
-
-        # Subject line (pre-filled if AI generated)
-        subject = st.text_input(
-            "Email Subject",
-            value=st.session_state.get('ai_generated_subject', ''),
-            placeholder="e.g., Partnership Opportunity with Your Company",
-            help="The subject line for your email"
-        )
-
-        # Template selection
+        # Template selection (moved before other fields so we can populate them)
         st.markdown("**Email Template**")
-        
+
         templates = get_default_templates()
         template_names = list(templates.keys())
-        
+
         col1, col2 = st.columns([1, 3])
-        
+
         with col1:
             selected_template = st.selectbox(
                 "Choose Template",
                 ["Custom", "AI Generated"] + template_names,
-                help="Select a pre-built template, use AI generated, or create your own"
+                help="Select a pre-built template, use AI generated, or create your own",
+                key="template_selector"
             )
 
         with col2:
@@ -1873,19 +1858,59 @@ def show_email_campaigns_page():
                 else:
                     st.warning("No AI content generated yet. Use the AI generator above.")
             elif selected_template != "Custom":
-                template_content = templates[selected_template]
+                # Get the template details (subject and body)
+                template_data = templates.get(selected_template, {})
+                template_content = template_data.get('body', '')
                 st.info(f"Using {selected_template} template")
             else:
                 template_content = ""
 
-        # Email content editor
+        st.divider()
+
+        # Campaign name (pre-filled if AI generated)
+        campaign_name = st.text_input(
+            "Campaign Name",
+            value=st.session_state.get('ai_generated_campaign_name', ''),
+            placeholder="e.g., Q1 Partnership Outreach",
+            help="Give your campaign a memorable name",
+            key="campaign_name_input"
+        )
+
+        # Subject line (pre-filled based on selected template or AI)
+        # Determine subject value based on template selection
+        if selected_template == "AI Generated":
+            subject_value = st.session_state.get('ai_generated_subject', '')
+        elif selected_template in templates:
+            template_data = templates.get(selected_template, {})
+            subject_value = template_data.get('subject', '')
+        else:
+            subject_value = ''
+
+        subject = st.text_input(
+            "Email Subject",
+            value=subject_value,
+            placeholder="e.g., Partnership Opportunity with Your Company",
+            help="The subject line for your email",
+            key="email_subject_input"
+        )
+
+        # Initialize email content in session state if template changed
+        if 'current_template' not in st.session_state or st.session_state['current_template'] != selected_template:
+            st.session_state['current_template'] = selected_template
+            st.session_state['email_content_value'] = template_content
+
+        # Email content editor - use session state for persistence
         email_content = st.text_area(
             "Email Content",
-            value=template_content,
+            value=st.session_state.get('email_content_value', template_content),
             height=300,
             help="Use {{company_name}}, {{first_name}}, {{email}}, {{website}}, {{country}} for personalization",
             key="email_content_editor"
         )
+
+        # Update session state when user edits
+        if email_content != st.session_state.get('email_content_value', ''):
+            st.session_state['email_content_value'] = email_content
         
         # Preview
         if email_content:
