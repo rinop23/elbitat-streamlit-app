@@ -6,6 +6,8 @@ Streamlit-based interface with authentication for:
 - Review and approve generated drafts
 - View scheduled posts
 - Configure API settings
+
+Version: 1.0.1 (Force rebuild to clear module cache)
 """
 
 from __future__ import annotations
