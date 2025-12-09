@@ -1499,69 +1499,75 @@ def show_email_campaigns_page():
                         st.session_state['discovered_contacts'] = all_contacts
                         if all_contacts:
                             st.success(f"✅ Found {len(all_contacts)} contacts with emails!")
-
-                            # Display results in a table
-                            st.subheader("Discovered Contacts")
-
-                            for i, contact in enumerate(all_contacts, 1):
-                                with st.expander(f"{i}. {contact.get('company_name', 'Unknown')} - {contact.get('email', 'No email')}"):
-                                    col1, col2 = st.columns(2)
-                                    
-                                    with col1:
-                                        st.write(f"**Email:** {contact.get('email', 'N/A')}")
-                                        st.write(f"**Company:** {contact.get('company_name', 'N/A')}")
-                                        st.write(f"**Website:** {contact.get('website', 'N/A')}")
-                                    
-                                    with col2:
-                                        st.write(f"**Country:** {contact.get('country', 'N/A')}")
-                                        st.write(f"**Industry:** {contact.get('industry', 'N/A')}")
-                                        st.write(f"**Source:** {contact.get('source', 'N/A')}")
-                            
-                            # Save to database
-                            if st.button("💾 Save All Contacts to Database", use_container_width=True):
-                                contacts_to_save = st.session_state.get('discovered_contacts', [])
-                                
-                                if not contacts_to_save:
-                                    st.error("No contacts to save. Please run discovery first.")
-                                else:
-                                    with st.spinner(f"Saving {len(contacts_to_save)} contacts..."):
-                                        try:
-                                            # Ensure database is initialized
-                                            from elbitat_agent.database import init_database, get_db_path
-                                            init_database()
-                                            
-                                            db_path = get_db_path()
-                                            st.info(f"Database: {db_path}")
-                                            st.info(f"Contacts to save: {len(contacts_to_save)}")
-                                            
-                                            # Show first contact as example
-                                            if contacts_to_save:
-                                                st.json(contacts_to_save[0])
-                                            
-                                            stats = bulk_save_contacts(contacts_to_save)
-                                            
-                                            st.info(f"Save stats: {stats}")
-                                            
-                                            if stats['saved'] > 0:
-                                                st.success(f"✅ Saved {stats['saved']} contacts! (Skipped {stats['skipped']} duplicates, Errors: {stats.get('errors', 0)})")
-                                                st.balloons()
-                                                st.rerun()
-                                            elif stats['skipped'] > 0:
-                                                st.warning(f"All {stats['skipped']} contacts were duplicates (already in database)")
-                                            elif stats['errors'] > 0:
-                                                st.error(f"Failed to save contacts. Errors: {stats['errors']}")
-                                            else:
-                                                st.error("No contacts were saved. Check the logs for details.")
-                                        except Exception as e:
-                                            st.error(f"Error saving contacts: {str(e)}")
-                                            import traceback
-                                            st.code(traceback.format_exc())
                         else:
                             st.warning(f"No email contacts found for the search query. Try a different search query or the companies may not have contact emails on their websites.")
-                    
+
                     except Exception as e:
                         st.error(f"Error during discovery: {str(e)}")
                         st.info("Try a different search query or check your API configuration.")
+
+        # Display discovered contacts (outside button block to persist across reruns)
+        discovered_contacts = st.session_state.get('discovered_contacts', [])
+        if discovered_contacts:
+            st.subheader("Discovered Contacts")
+
+            for i, contact in enumerate(discovered_contacts, 1):
+                with st.expander(f"{i}. {contact.get('company_name', 'Unknown')} - {contact.get('email', 'No email')}"):
+                    col1, col2 = st.columns(2)
+
+                    with col1:
+                        st.write(f"**Email:** {contact.get('email', 'N/A')}")
+                        st.write(f"**Company:** {contact.get('company_name', 'N/A')}")
+                        st.write(f"**Website:** {contact.get('website', 'N/A')}")
+
+                    with col2:
+                        st.write(f"**Country:** {contact.get('country', 'N/A')}")
+                        st.write(f"**Industry:** {contact.get('industry', 'N/A')}")
+                        st.write(f"**Source:** {contact.get('source', 'N/A')}")
+
+            # Save to database button
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                if st.button("💾 Save All Contacts to Database", use_container_width=True):
+                    with st.spinner(f"Saving {len(discovered_contacts)} contacts..."):
+                        try:
+                            # Ensure database is initialized
+                            from elbitat_agent.database import init_database, get_db_path
+                            init_database()
+
+                            db_path = get_db_path()
+                            st.info(f"Database: {db_path}")
+                            st.info(f"Contacts to save: {len(discovered_contacts)}")
+
+                            # Show first contact as example
+                            if discovered_contacts:
+                                st.json(discovered_contacts[0])
+
+                            stats = bulk_save_contacts(discovered_contacts)
+
+                            st.info(f"Save stats: {stats}")
+
+                            if stats['saved'] > 0:
+                                st.success(f"✅ Saved {stats['saved']} contacts! (Skipped {stats['skipped']} duplicates, Errors: {stats.get('errors', 0)})")
+                                st.balloons()
+                                # Clear discovered contacts after successful save
+                                st.session_state['discovered_contacts'] = []
+                                st.rerun()
+                            elif stats['skipped'] > 0:
+                                st.warning(f"All {stats['skipped']} contacts were duplicates (already in database)")
+                            elif stats['errors'] > 0:
+                                st.error(f"Failed to save contacts. Errors: {stats['errors']}")
+                            else:
+                                st.error("No contacts were saved. Check the logs for details.")
+                        except Exception as e:
+                            st.error(f"Error saving contacts: {str(e)}")
+                            import traceback
+                            st.code(traceback.format_exc())
+
+            with col2:
+                if st.button("🗑️ Clear", use_container_width=True):
+                    st.session_state['discovered_contacts'] = []
+                    st.rerun()
     
     with tab2:
         st.subheader("Manage Contacts")
