@@ -1862,8 +1862,11 @@ def show_email_campaigns_page():
                 template_data = templates.get(selected_template, {})
                 template_content = template_data.get('body', '')
                 st.info(f"Using {selected_template} template")
+                # Debug: show content length
+                st.caption(f"Template content loaded: {len(template_content)} characters")
             else:
                 template_content = ""
+                st.info("Custom template - start typing below")
 
         st.divider()
 
@@ -1896,6 +1899,10 @@ def show_email_campaigns_page():
 
         # Email content editor
         # Use dynamic key based on template to force refresh when template changes
+        # Debug output
+        if selected_template != "Custom":
+            st.caption(f"📝 Loading content for: {selected_template}")
+
         email_content = st.text_area(
             "Email Content",
             value=template_content,
