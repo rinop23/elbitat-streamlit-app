@@ -437,25 +437,42 @@ def migrate_files_to_db():
 
 # ===== EMAIL CONTACT OPERATIONS =====
 
-def save_email_contact(email: str, company_name: str = None, website: str = None, 
-                       country: str = None, industry: str = None, source: str = None) -> bool:
+def save_email_contact(email: str, company_name: str = None, website: str = None,
+                       country: str = None, industry: str = None, source: str = None,
+                       status: str = 'active') -> bool:
     """Save an email contact to the database."""
     try:
         db_path = get_db_path()
         conn = sqlite3.connect(str(db_path))
         cursor = conn.cursor()
-        
-        cursor.execute('''
-            INSERT OR REPLACE INTO email_contacts 
-            (email, company_name, website, country, industry, source, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        ''', (email, company_name, website, country, industry, source, datetime.now()))
-        
+
+        # Check if contact already exists
+        cursor.execute('SELECT id, status FROM email_contacts WHERE email = ?', (email,))
+        existing = cursor.fetchone()
+
+        if existing:
+            # Update existing contact, keep its status
+            cursor.execute('''
+                UPDATE email_contacts
+                SET company_name = ?, website = ?, country = ?, industry = ?,
+                    source = ?, updated_at = ?
+                WHERE email = ?
+            ''', (company_name, website, country, industry, source, datetime.now(), email))
+        else:
+            # Insert new contact with status
+            cursor.execute('''
+                INSERT INTO email_contacts
+                (email, company_name, website, country, industry, source, status, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (email, company_name, website, country, industry, source, status, datetime.now()))
+
         conn.commit()
         conn.close()
         return True
     except Exception as e:
         print(f"Error saving email contact: {e}")
+        import traceback
+        traceback.print_exc()
         return False
 
 
