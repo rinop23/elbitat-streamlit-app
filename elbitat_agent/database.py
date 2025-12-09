@@ -131,7 +131,18 @@ def init_database():
             FOREIGN KEY (contact_id) REFERENCES email_contacts(id)
         )
     ''')
-    
+
+    # Migration: Fix any contacts with NULL status (from old INSERT OR REPLACE)
+    cursor.execute('''
+        UPDATE email_contacts
+        SET status = 'active'
+        WHERE status IS NULL OR status = ''
+    ''')
+
+    rows_updated = cursor.rowcount
+    if rows_updated > 0:
+        print(f"✅ Migration: Fixed {rows_updated} contacts with NULL status")
+
     conn.commit()
     conn.close()
 
