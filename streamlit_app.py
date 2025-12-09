@@ -1916,7 +1916,10 @@ def show_email_campaigns_page():
         
         # Preview
         if email_content:
-            st.markdown("**Preview (with sample data)**")
+            st.divider()
+            st.markdown("### 👁️ Preview - How Recipients Will See It")
+            st.caption("Sample data: John from Acme Corp (Denmark)")
+
             sample_contact = {
                 'company_name': 'Acme Corp',
                 'first_name': 'John',
@@ -1925,7 +1928,14 @@ def show_email_campaigns_page():
                 'country': 'Denmark'
             }
             preview = personalize_email(email_content, sample_contact)
-            st.markdown(f"```\n{preview}\n```")
+
+            # Render the HTML
+            with st.container():
+                st.markdown(preview, unsafe_allow_html=True)
+
+            # Also show the raw HTML in an expander for reference
+            with st.expander("📋 View Raw HTML (for debugging)"):
+                st.code(preview, language="html")
         
         # Save campaign
         if st.button("💾 Save Campaign", type="primary", use_container_width=True):
