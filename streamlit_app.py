@@ -1899,16 +1899,19 @@ def show_email_campaigns_page():
 
         # Email content editor
         # Use dynamic key based on template to force refresh when template changes
-        # Debug output
-        if selected_template != "Custom":
-            st.caption(f"📝 Loading content for: {selected_template}")
+        st.markdown("### 📧 Email Content (HTML)")
+        if template_content:
+            st.info(f"✏️ Edit the HTML below - {len(template_content)} characters loaded. Scroll down to see the preview.")
+        else:
+            st.info("✏️ Type or paste your email HTML content below")
 
         email_content = st.text_area(
-            "Email Content",
+            "Email HTML Code",
             value=template_content,
-            height=300,
+            height=400,
             help="Use {{company_name}}, {{first_name}}, {{email}}, {{website}}, {{country}} for personalization",
-            key=f"email_content_{selected_template}"
+            key=f"email_content_{selected_template}",
+            label_visibility="collapsed"
         )
         
         # Preview
