@@ -1496,12 +1496,12 @@ def show_email_campaigns_page():
                         # Store in session state
                         st.session_state['discovered_contacts'] = all_contacts
                         if all_contacts:
-                            st.success(f"✅ Found {len(contacts)} contacts with emails!")
-                            
+                            st.success(f"✅ Found {len(all_contacts)} contacts with emails!")
+
                             # Display results in a table
                             st.subheader("Discovered Contacts")
-                            
-                            for i, contact in enumerate(contacts, 1):
+
+                            for i, contact in enumerate(all_contacts, 1):
                                 with st.expander(f"{i}. {contact.get('company_name', 'Unknown')} - {contact.get('email', 'No email')}"):
                                     col1, col2 = st.columns(2)
                                     
@@ -1514,9 +1514,6 @@ def show_email_campaigns_page():
                                         st.write(f"**Country:** {contact.get('country', 'N/A')}")
                                         st.write(f"**Industry:** {contact.get('industry', 'N/A')}")
                                         st.write(f"**Source:** {contact.get('source', 'N/A')}")
-                            
-                            # Store contacts in session state for saving
-                            st.session_state['discovered_contacts'] = contacts
                             
                             # Save to database
                             if st.button("💾 Save All Contacts to Database", use_container_width=True):
@@ -1558,7 +1555,7 @@ def show_email_campaigns_page():
                                             import traceback
                                             st.code(traceback.format_exc())
                         else:
-                            st.warning(f"No email contacts found. Found {len(contacts)} companies but no emails extracted from their websites. Try a different search query or the companies may not have contact emails on their websites.")
+                            st.warning(f"No email contacts found for the search query. Try a different search query or the companies may not have contact emails on their websites.")
                     
                     except Exception as e:
                         st.error(f"Error during discovery: {str(e)}")
