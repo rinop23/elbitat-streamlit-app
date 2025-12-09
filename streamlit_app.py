@@ -1753,21 +1753,103 @@ def show_email_campaigns_page():
     
     with tab3:
         st.subheader("Create Email Campaign")
-        
-        # Campaign name
+
+        # AI Generation Section
+        with st.expander("🤖 Generate Email with AI", expanded=False):
+            st.write("Let AI create a customized email campaign for you based on your goals and audience.")
+
+            ai_goal = st.text_input(
+                "Campaign Goal",
+                placeholder="e.g., Establish partnerships with travel agencies in Scandinavia",
+                help="What do you want to achieve with this campaign?"
+            )
+
+            ai_audience = st.text_input(
+                "Target Audience",
+                placeholder="e.g., Travel agency owners and managers in Denmark, Sweden, Norway",
+                help="Who are you targeting?"
+            )
+
+            ai_key_points = st.text_area(
+                "Key Points to Include",
+                placeholder="- Exclusive partnership benefits\n- Track record of successful collaborations\n- Personalized service offerings",
+                help="Enter each key point on a new line (start with -)"
+            )
+
+            col1, col2 = st.columns(2)
+            with col1:
+                ai_tone = st.selectbox(
+                    "Email Tone",
+                    ["professional", "friendly", "formal", "casual"],
+                    help="Choose the tone of voice for your email"
+                )
+
+            with col2:
+                ai_length = st.selectbox(
+                    "Email Length",
+                    ["short", "medium", "long"],
+                    index=1,
+                    help="How detailed should the email be?"
+                )
+
+            if st.button("✨ Generate with AI", type="primary", use_container_width=True):
+                if not ai_goal:
+                    st.error("Please enter a campaign goal")
+                elif not ai_audience:
+                    st.error("Please describe your target audience")
+                elif not ai_key_points:
+                    st.error("Please enter at least one key point")
+                else:
+                    with st.spinner("🤖 AI is crafting your email..."):
+                        try:
+                            from elbitat_agent.agents.email_campaigns import generate_ai_email_content
+
+                            # Parse key points
+                            key_points_list = [
+                                line.strip().lstrip('-•*').strip()
+                                for line in ai_key_points.split('\n')
+                                if line.strip()
+                            ]
+
+                            # Generate content
+                            result = generate_ai_email_content(
+                                campaign_goal=ai_goal,
+                                target_audience=ai_audience,
+                                key_points=key_points_list,
+                                tone=ai_tone,
+                                length=ai_length
+                            )
+
+                            # Store in session state to populate the form below
+                            st.session_state['ai_generated_subject'] = result['subject']
+                            st.session_state['ai_generated_body'] = result['body']
+                            st.session_state['ai_generated_campaign_name'] = f"{ai_goal[:50]}..." if len(ai_goal) > 50 else ai_goal
+
+                            st.success("✅ Email generated! Scroll down to review and edit.")
+                            st.rerun()
+
+                        except Exception as e:
+                            st.error(f"Error generating email: {str(e)}")
+                            st.info("Make sure OPENAI_API_KEY is configured in your secrets.")
+
+        st.divider()
+
+        # Campaign name (pre-filled if AI generated)
         campaign_name = st.text_input(
             "Campaign Name",
+            value=st.session_state.get('ai_generated_campaign_name', ''),
             placeholder="e.g., Q1 Partnership Outreach",
             help="Give your campaign a memorable name"
         )
-        
-        # Subject line
+
+        # Subject line (pre-filled if AI generated)
         subject = st.text_input(
             "Email Subject",
+            value=st.session_state.get('ai_generated_subject', ''),
             placeholder="e.g., Partnership Opportunity with Your Company",
             help="The subject line for your email"
         )
-        
+
         # Template selection
         st.markdown("**Email Template**")
         
@@ -1779,23 +1861,30 @@ def show_email_campaigns_page():
         with col1:
             selected_template = st.selectbox(
                 "Choose Template",
-                ["Custom"] + template_names,
-                help="Select a pre-built template or create your own"
+                ["Custom", "AI Generated"] + template_names,
+                help="Select a pre-built template, use AI generated, or create your own"
             )
-        
+
         with col2:
-            if selected_template != "Custom":
+            if selected_template == "AI Generated":
+                template_content = st.session_state.get('ai_generated_body', '')
+                if template_content:
+                    st.info("Using AI-generated content")
+                else:
+                    st.warning("No AI content generated yet. Use the AI generator above.")
+            elif selected_template != "Custom":
                 template_content = templates[selected_template]
                 st.info(f"Using {selected_template} template")
             else:
                 template_content = ""
-        
+
         # Email content editor
         email_content = st.text_area(
             "Email Content",
             value=template_content,
             height=300,
-            help="Use {{company_name}}, {{first_name}}, {{email}}, {{website}}, {{country}} for personalization"
+            help="Use {{company_name}}, {{first_name}}, {{email}}, {{website}}, {{country}} for personalization",
+            key="email_content_editor"
         )
         
         # Preview

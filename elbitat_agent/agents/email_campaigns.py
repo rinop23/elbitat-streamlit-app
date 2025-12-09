@@ -1,5 +1,6 @@
 """Email campaign management and sending with SendGrid integration."""
 
+import os
 import re
 from typing import Dict, List, Optional
 from datetime import datetime
@@ -264,9 +265,150 @@ def create_html_template(content: str, include_unsubscribe: bool = True) -> str:
     return html_template
 
 
+def generate_ai_email_content(
+    campaign_goal: str,
+    target_audience: str,
+    key_points: List[str],
+    tone: str = "professional",
+    length: str = "medium"
+) -> Dict[str, str]:
+    """Generate email content using AI based on campaign parameters.
+
+    Args:
+        campaign_goal: The main objective of the email campaign
+        target_audience: Description of the target audience
+        key_points: List of key points to include in the email
+        tone: Email tone (professional, friendly, casual, formal)
+        length: Email length (short, medium, long)
+
+    Returns:
+        Dictionary with 'subject' and 'body' keys containing generated content
+    """
+    try:
+        from openai import OpenAI
+
+        # Try to get API key from Streamlit secrets first, then environment
+        api_key = None
+        try:
+            if hasattr(st, 'secrets') and 'OPENAI_API_KEY' in st.secrets:
+                api_key = st.secrets["OPENAI_API_KEY"]
+        except:
+            pass
+
+        if not api_key:
+            api_key = os.getenv("OPENAI_API_KEY")
+
+        if not api_key:
+            raise ValueError("OPENAI_API_KEY not found in secrets or environment variables")
+
+        client = OpenAI(api_key=api_key)
+
+        # Build the prompt
+        key_points_text = "\n".join([f"- {point}" for point in key_points])
+
+        length_guidance = {
+            "short": "Keep it concise, 2-3 short paragraphs maximum",
+            "medium": "Use 3-4 paragraphs with moderate detail",
+            "long": "Provide comprehensive detail in 5-6 paragraphs"
+        }
+
+        prompt = f"""You are a professional email marketing copywriter for Elbitat, a luxury wellness hotel on Elba Island, Italy.
+
+Create a compelling email campaign with the following parameters:
+
+**Campaign Goal:** {campaign_goal}
+**Target Audience:** {target_audience}
+**Tone:** {tone}
+**Length:** {length_guidance.get(length, length_guidance['medium'])}
+
+**Key Points to Include:**
+{key_points_text}
+
+**Requirements:**
+1. Create an attention-grabbing subject line (50-60 characters)
+2. Write engaging email body in HTML format
+3. Use personalization placeholders: {{{{first_name}}}}, {{{{company_name}}}}, {{{{country}}}}
+4. Include a clear call-to-action
+5. Maintain {tone} tone throughout
+6. Make it suitable for B2B communication with travel agencies and wellness businesses
+
+**Output Format:**
+SUBJECT: [your subject line]
+
+BODY:
+[your HTML email content]
+
+Make the email compelling and action-oriented while maintaining authenticity and professionalism."""
+
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You are an expert email marketing copywriter specializing in luxury wellness and hospitality."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7,
+            max_tokens=1500
+        )
+
+        content = response.choices[0].message.content.strip()
+
+        # Parse the response
+        lines = content.split('\n')
+        subject = ""
+        body_lines = []
+        in_body = False
+
+        for line in lines:
+            if line.startswith('SUBJECT:'):
+                subject = line.replace('SUBJECT:', '').strip()
+            elif line.startswith('BODY:'):
+                in_body = True
+            elif in_body:
+                body_lines.append(line)
+
+        body = '\n'.join(body_lines).strip()
+
+        # If parsing failed, try alternative format
+        if not subject or not body:
+            # Try to find subject in first few lines
+            for i, line in enumerate(lines[:5]):
+                if 'subject' in line.lower() and ':' in line:
+                    subject = line.split(':', 1)[1].strip()
+                    body = '\n'.join(lines[i+1:]).strip()
+                    break
+
+        # Fallback: use first line as subject, rest as body
+        if not subject:
+            subject = lines[0].replace('SUBJECT:', '').strip()
+            body = '\n'.join(lines[1:]).strip()
+
+        return {
+            'subject': subject,
+            'body': body
+        }
+
+    except Exception as e:
+        print(f"Error generating AI email content: {e}")
+        import traceback
+        traceback.print_exc()
+        return {
+            'subject': f"Partnership Opportunity with Elbitat",
+            'body': f"""<p>Hi {{{{first_name}}}},</p>
+
+<p>I'm reaching out regarding {campaign_goal}.</p>
+
+<p>We'd love to discuss potential collaboration opportunities.</p>
+
+<p>Best regards,<br>
+The Elbitat Team</p>
+
+<p><em>Note: AI generation failed, using fallback template. Error: {str(e)}</em></p>"""
+        }
+
+
 def get_default_templates() -> Dict[str, Dict[str, str]]:
     """Get default email templates for common scenarios.
-    
+
     Returns:
         Dictionary of template name -> {subject, body}
     """
