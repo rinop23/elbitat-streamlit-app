@@ -1891,26 +1891,18 @@ def show_email_campaigns_page():
             value=subject_value,
             placeholder="e.g., Partnership Opportunity with Your Company",
             help="The subject line for your email",
-            key="email_subject_input"
+            key=f"email_subject_{selected_template}"
         )
 
-        # Initialize email content in session state if template changed
-        if 'current_template' not in st.session_state or st.session_state['current_template'] != selected_template:
-            st.session_state['current_template'] = selected_template
-            st.session_state['email_content_value'] = template_content
-
-        # Email content editor - use session state for persistence
+        # Email content editor
+        # Use dynamic key based on template to force refresh when template changes
         email_content = st.text_area(
             "Email Content",
-            value=st.session_state.get('email_content_value', template_content),
+            value=template_content,
             height=300,
             help="Use {{company_name}}, {{first_name}}, {{email}}, {{website}}, {{country}} for personalization",
-            key="email_content_editor"
+            key=f"email_content_{selected_template}"
         )
-
-        # Update session state when user edits
-        if email_content != st.session_state.get('email_content_value', ''):
-            st.session_state['email_content_value'] = email_content
         
         # Preview
         if email_content:
