@@ -14,7 +14,7 @@ import random
 from pathlib import Path
 from typing import List
 
-from .paths import get_workspace_path
+from .config import get_workspace_path
 
 
 def get_media_library_path() -> Path:

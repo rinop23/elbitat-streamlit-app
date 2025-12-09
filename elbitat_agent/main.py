@@ -7,7 +7,7 @@ import json
 
 from .file_storage import list_request_files, load_all_requests
 from .agents.orchestrator import generate_drafts_for_all_requests
-from .paths import get_workspace_path
+from .config import get_workspace_path
 
 
 def cmd_list_requests() -> None:
@@ -28,17 +28,14 @@ def cmd_generate_drafts() -> None:
 
 def cmd_schedule_draft() -> None:
     """Prepare a draft for scheduled publication."""
-    from .file_storage import list_request_files, load_request, save_draft
-    from .agents.creative_agent import generate_simple_draft
-    from .agents.posting_agent import schedule_draft_for_publication
-    
+    from .agents.orchestrator import schedule_all_drafts
+
     # For now, just schedule all drafts to demonstrate the workflow
     drafts = generate_drafts_for_all_requests()
     publish_time = datetime.now()  # In production, parse from args
-    
-    from .agents.orchestrator import schedule_all_drafts
+
     schedule_all_drafts(drafts, publish_at=publish_time)
-    
+
     print(f"Scheduled {len(drafts)} draft(s) for publication.")
     print("Check the 'scheduled' folder in your workspace.")
 

@@ -19,7 +19,7 @@ import yaml
 from yaml.loader import SafeLoader
 import copy
 
-from elbitat_agent.paths import get_workspace_path
+from elbitat_agent.config import get_workspace_path
 from elbitat_agent.file_storage import (
     load_all_requests, list_request_files,
     load_all_drafts, save_request, save_scheduled_post, delete_draft, delete_scheduled_post,
@@ -198,9 +198,7 @@ def show_dashboard():
     api_status = check_api_configuration()
     workspace = get_workspace_path()
     
-    # Use database counts when available, fallback to file counts
-    from elbitat_agent.file_storage import load_all_drafts
-    drafts_count = len(load_all_drafts())
+    drafts_count = len(list((workspace / "drafts").glob("*.json"))) if (workspace / "drafts").exists() else 0
     scheduled_count = len(list((workspace / "scheduled").glob("*.json"))) if (workspace / "scheduled").exists() else 0
     posted_count = len(list((workspace / "posted").glob("*.json"))) if (workspace / "posted").exists() else 0
     
@@ -492,12 +490,22 @@ def show_chat_page():
         st.subheader("Campaign Details")
         
         col1, col2 = st.columns(2)
-        
+
+        # List of countries for selection
+        country_list = [
+            "Denmark", "France", "Germany", "Italy", "Spain", "United Kingdom", "United States", "Canada", "Australia", "India", "Thailand", "Greece", "Portugal", "Sweden", "Norway", "Finland", "Netherlands", "Belgium", "Switzerland", "Austria", "Ireland", "Poland", "Czech Republic", "Hungary", "Turkey", "Japan", "South Korea", "China", "Brazil", "Mexico", "Argentina", "South Africa", "Egypt", "Morocco", "Israel", "UAE", "Singapore", "Malaysia", "Indonesia", "Vietnam", "Philippines", "Russia", "Ukraine", "Romania", "Bulgaria", "Croatia", "Slovenia", "Slovakia", "Estonia", "Latvia", "Lithuania"
+        ]
+
         with col1:
             title = st.text_input("Campaign Title*", placeholder="e.g., Holistic Wellness Launch")
             goal = st.selectbox("Campaign Goal", ["awareness", "bookings", "engagement", "leads"])
             audience = st.text_input("Target Audience", placeholder="e.g., Wellness seekers, yoga enthusiasts")
-        
+            countries = st.multiselect(
+                "Country/Nation(s)",
+                country_list,
+                help="Select one or more countries for your campaign"
+            )
+
         with col2:
             platforms = st.multiselect(
                 "Platforms*",
@@ -681,11 +689,16 @@ def show_drafts_page():
                 except Exception as e:
                     st.error(f"Error: {str(e)}")
     
-    # Load drafts from database or filesystem
-    from elbitat_agent.file_storage import load_all_drafts
-    drafts = load_all_drafts()
+    workspace = get_workspace_path()
+    drafts_dir = workspace / "drafts"
     
-    if not drafts:
+    if not drafts_dir.exists():
+        st.info("No drafts available. Create a campaign first!")
+        return
+    
+    draft_files = sorted(drafts_dir.glob("*.json"))
+    
+    if not draft_files:
         st.info("No drafts available. Create a campaign first!")
         
         col1, col2 = st.columns(2)
@@ -724,8 +737,11 @@ def show_drafts_page():
     # Display drafts in grid
     cols = st.columns(3)
     
-    for idx, draft_data in enumerate(drafts):
+    for idx, draft_file in enumerate(draft_files):
         with cols[idx % 3]:
+            with open(draft_file, 'r', encoding='utf-8') as f:
+                draft_data = json.load(f)
+            
             request = draft_data['request']
             
             with st.container():
@@ -742,11 +758,8 @@ def show_drafts_page():
                     st.write(brief)
                 
                 # Review button
-                draft_filename = draft_data.get('_filename', f"draft_{idx}")
-                draft_name = Path(draft_filename).stem if '_filename' in draft_data else f"draft_{idx}"
-                if st.button(f"👁️ Review", key=f"review_{draft_name}"):
-                    st.session_state['selected_draft'] = draft_name
-                    st.session_state['selected_draft_data'] = draft_data
+                if st.button(f"👁️ Review", key=f"review_{draft_file.stem}"):
+                    st.session_state['selected_draft'] = draft_file.stem
                     st.session_state['show_draft_detail'] = True
                     st.rerun()
     
@@ -757,12 +770,16 @@ def show_drafts_page():
 
 def show_draft_detail_modal():
     """Display detailed draft view in modal-like container."""
-    draft_data = st.session_state.get('selected_draft_data')
-    draft_name = st.session_state.get('selected_draft', 'draft')
+    draft_name = st.session_state.get('selected_draft')
+    workspace = get_workspace_path()
+    draft_file = workspace / "drafts" / f"{draft_name}.json"
     
-    if not draft_data:
+    if not draft_file.exists():
         st.error("Draft not found")
         return
+    
+    with open(draft_file, 'r', encoding='utf-8') as f:
+        draft_data = json.load(f)
     
     request = draft_data['request']
     copy_by_platform = draft_data['copy_by_platform']
@@ -836,11 +853,7 @@ def show_draft_detail_modal():
                                 draft_data['copy_by_platform'] = new_copy
                                 
                                 # Save updated draft to database
-                                draft_filename = draft_data.get('_filename', f"{draft_name}.json")
-                                save_draft_dict(draft_data, draft_filename)
-                                
-                                # Update session state with new data
-                                st.session_state['selected_draft_data'] = draft_data
+                                save_draft_dict(draft_data, draft_file.name)
                                 
                                 st.success("✅ Content regenerated!")
                                 st.rerun()
@@ -907,11 +920,7 @@ def show_draft_detail_modal():
                                 draft_data['selected_images'] = selected_new_images
                                 
                                 # Save updated draft to database
-                                draft_filename = draft_data.get('_filename', f"{st.session_state.get('selected_draft')}.json")
-                                save_draft_dict(draft_data, draft_filename)
-                                
-                                # Update session state with new data
-                                st.session_state['selected_draft_data'] = draft_data
+                                save_draft_dict(draft_data, draft_file.name)
                                 
                                 st.success(f"✅ Updated with {len(selected_new_images)} images!")
                                 st.session_state[f'show_image_selector_{draft_name}'] = False
@@ -1458,10 +1467,15 @@ def show_email_campaigns_page():
             )
         
         with col2:
-            country = st.text_input(
-                "Country",
-                value="Denmark",
-                help="Country to focus the search on"
+            # List of all countries
+            country_list = [
+                "Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Antigua and Barbuda", "Argentina", "Armenia", "Australia", "Austria", "Azerbaijan", "Bahamas", "Bahrain", "Bangladesh", "Barbados", "Belarus", "Belgium", "Belize", "Benin", "Bhutan", "Bolivia", "Bosnia and Herzegovina", "Botswana", "Brazil", "Brunei", "Bulgaria", "Burkina Faso", "Burundi", "Cabo Verde", "Cambodia", "Cameroon", "Canada", "Central African Republic", "Chad", "Chile", "China", "Colombia", "Comoros", "Congo", "Costa Rica", "Croatia", "Cuba", "Cyprus", "Czech Republic", "Denmark", "Djibouti", "Dominica", "Dominican Republic", "Ecuador", "Egypt", "El Salvador", "Equatorial Guinea", "Eritrea", "Estonia", "Eswatini", "Ethiopia", "Fiji", "Finland", "France", "Gabon", "Gambia", "Georgia", "Germany", "Ghana", "Greece", "Grenada", "Guatemala", "Guinea", "Guinea-Bissau", "Guyana", "Haiti", "Honduras", "Hungary", "Iceland", "India", "Indonesia", "Iran", "Iraq", "Ireland", "Israel", "Italy", "Jamaica", "Japan", "Jordan", "Kazakhstan", "Kenya", "Kiribati", "Kuwait", "Kyrgyzstan", "Laos", "Latvia", "Lebanon", "Lesotho", "Liberia", "Libya", "Liechtenstein", "Lithuania", "Luxembourg", "Madagascar", "Malawi", "Malaysia", "Maldives", "Mali", "Malta", "Marshall Islands", "Mauritania", "Mauritius", "Mexico", "Micronesia", "Moldova", "Monaco", "Mongolia", "Montenegro", "Morocco", "Mozambique", "Myanmar", "Namibia", "Nauru", "Nepal", "Netherlands", "New Zealand", "Nicaragua", "Niger", "Nigeria", "North Korea", "North Macedonia", "Norway", "Oman", "Pakistan", "Palau", "Palestine", "Panama", "Papua New Guinea", "Paraguay", "Peru", "Philippines", "Poland", "Portugal", "Qatar", "Romania", "Russia", "Rwanda", "Saint Kitts and Nevis", "Saint Lucia", "Saint Vincent and the Grenadines", "Samoa", "San Marino", "Sao Tome and Principe", "Saudi Arabia", "Senegal", "Serbia", "Seychelles", "Sierra Leone", "Singapore", "Slovakia", "Slovenia", "Solomon Islands", "Somalia", "South Africa", "South Korea", "South Sudan", "Spain", "Sri Lanka", "Sudan", "Suriname", "Sweden", "Switzerland", "Syria", "Taiwan", "Tajikistan", "Tanzania", "Thailand", "Timor-Leste", "Togo", "Tonga", "Trinidad and Tobago", "Tunisia", "Turkey", "Turkmenistan", "Tuvalu", "Uganda", "Ukraine", "United Arab Emirates", "United Kingdom", "United States", "Uruguay", "Uzbekistan", "Vanuatu", "Vatican City", "Venezuela", "Vietnam", "Yemen", "Zambia", "Zimbabwe"
+            ]
+            selected_countries = st.multiselect(
+                "Country/Nation(s)",
+                options=country_list,
+                default=["Denmark"],
+                help="Select one or more countries to focus the search on"
             )
         
         max_companies = st.slider("Maximum Companies to Find", 5, 50, 10)
@@ -1469,16 +1483,19 @@ def show_email_campaigns_page():
         if st.button("🔍 Start Discovery", type="primary", use_container_width=True):
             if not search_query:
                 st.error("Please enter a search query")
+            elif not selected_countries:
+                st.error("Please select at least one country/nation")
             else:
-                with st.spinner(f"Searching for {search_query} in {country}..."):
+                with st.spinner(f"Searching for {search_query} in {', '.join(selected_countries)}..."):
                     try:
-                        # Discover contacts
-                        contacts = discover_contacts(search_query, country, max_companies)
-                        
+                        # Discover contacts for each selected country
+                        all_contacts = []
+                        for country in selected_countries:
+                            contacts = discover_contacts(search_query, country, max_companies)
+                            all_contacts.extend(contacts)
                         # Store in session state
-                        st.session_state['discovered_contacts'] = contacts
-                        
-                        if contacts:
+                        st.session_state['discovered_contacts'] = all_contacts
+                        if all_contacts:
                             st.success(f"✅ Found {len(contacts)} contacts with emails!")
                             
                             # Display results in a table
@@ -1555,30 +1572,42 @@ def show_email_campaigns_page():
             st.write("Can't find emails automatically? Add them manually here.")
             
             col1, col2 = st.columns(2)
-            
+
+            # List of countries for selection
+            country_list = [
+                "Denmark", "France", "Germany", "Italy", "Spain", "United Kingdom", "United States", "Canada", "Australia", "India", "Thailand", "Greece", "Portugal", "Sweden", "Norway", "Finland", "Netherlands", "Belgium", "Switzerland", "Austria", "Ireland", "Poland", "Czech Republic", "Hungary", "Turkey", "Japan", "South Korea", "China", "Brazil", "Mexico", "Argentina", "South Africa", "Egypt", "Morocco", "Israel", "UAE", "Singapore", "Malaysia", "Indonesia", "Vietnam", "Philippines", "Russia", "Ukraine", "Romania", "Bulgaria", "Croatia", "Slovenia", "Slovakia", "Estonia", "Latvia", "Lithuania"
+            ]
+
             with col1:
                 manual_email = st.text_input("Email Address*", placeholder="contact@company.com")
                 manual_company = st.text_input("Company Name*", placeholder="Wellness Center Copenhagen")
                 manual_website = st.text_input("Website", placeholder="https://example.com")
-            
+
             with col2:
-                manual_country = st.text_input("Country", placeholder="Denmark")
+                manual_country = st.multiselect(
+                    "Country/Nation(s)",
+                    country_list,
+                    help="Select one or more countries for this contact"
+                )
                 manual_industry = st.text_input("Industry", placeholder="Wellness/Spa")
                 manual_source = st.text_input("Source", value="manual_entry")
             
             if st.button("💾 Add Contact", use_container_width=True):
                 if not manual_email or not manual_company:
                     st.error("Email and Company Name are required")
+                elif not manual_country:
+                    st.error("Please select at least one country.")
                 else:
                     try:
                         from elbitat_agent.database import init_database, save_email_contact
                         init_database()
-                        
+                        # Convert list of countries to comma-separated string
+                        country_str = ", ".join(manual_country) if isinstance(manual_country, list) else str(manual_country)
                         success = save_email_contact(
                             email=manual_email,
                             company_name=manual_company,
                             website=manual_website,
-                            country=manual_country,
+                            country=country_str,
                             industry=manual_industry,
                             source=manual_source
                         )

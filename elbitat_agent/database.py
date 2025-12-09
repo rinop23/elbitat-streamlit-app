@@ -396,7 +396,7 @@ def update_scheduled_post_status(filename: str, status: str) -> bool:
 
 def migrate_files_to_db():
     """Migrate existing files from file system to database (one-time operation)."""
-    from elbitat_agent.paths import get_workspace_path
+    from elbitat_agent.config import get_workspace_path
     from elbitat_agent.file_storage import load_all_requests, load_all_drafts, load_all_scheduled_posts
     
     workspace = get_workspace_path()

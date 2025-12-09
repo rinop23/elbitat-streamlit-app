@@ -7,8 +7,7 @@ from typing import List, Dict
 import json
 
 from ..models import AdDraft
-from ..config import SocialMediaConfig
-from ..paths import get_workspace_path
+from ..config import SocialMediaConfig, get_workspace_path
 
 try:
     from .instagram_poster import InstagramPoster
