@@ -1929,9 +1929,10 @@ def show_email_campaigns_page():
             }
             preview = personalize_email(email_content, sample_contact)
 
-            # Render the HTML
+            # Render the HTML using st.components.v1.html for accurate preview
+            import streamlit.components.v1 as components
             with st.container():
-                st.markdown(preview, unsafe_allow_html=True)
+                components.html(preview, height=500, scrolling=True)
 
             # Also show the raw HTML in an expander for reference
             with st.expander("📋 View Raw HTML (for debugging)"):
