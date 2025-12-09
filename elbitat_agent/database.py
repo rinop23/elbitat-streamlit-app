@@ -297,22 +297,28 @@ def delete_draft_from_db(filename: str) -> bool:
 
 def save_scheduled_post_to_db(filename: str, data: Dict) -> bool:
     """Save a scheduled post to the database."""
+    # Safeguard: Only allow overwrite if explicitly requested (e.g., via an 'overwrite' flag in data)
+    overwrite = data.get('overwrite', False)
     try:
         db_path = get_db_path()
         conn = sqlite3.connect(str(db_path))
         cursor = conn.cursor()
-        
+        # Check if post already exists
+        cursor.execute('SELECT COUNT(*) FROM scheduled_posts WHERE filename = ?', (filename,))
+        exists = cursor.fetchone()[0] > 0
+        if exists and not overwrite:
+            print(f"⛔ Scheduled post '{filename}' already exists. Not overwriting without explicit request.")
+            conn.close()
+            return False
         content_json = json.dumps(data, ensure_ascii=False)
         service = data.get('service', '')
         scheduled_time = data.get('scheduled_time', '')
         status = data.get('status', 'pending')
-        
         cursor.execute('''
             INSERT OR REPLACE INTO scheduled_posts 
             (filename, content, service, scheduled_time, status, updated_at)
             VALUES (?, ?, ?, ?, ?, ?)
         ''', (filename, content_json, service, scheduled_time, status, datetime.now()))
-        
         conn.commit()
         conn.close()
         return True
@@ -346,13 +352,17 @@ def get_all_scheduled_posts() -> List[Dict]:
 
 def delete_scheduled_post_from_db(filename: str) -> bool:
     """Delete a scheduled post from the database."""
+    # Safeguard: Only allow deletion if explicitly requested (e.g., via a 'confirm_delete' flag in st.session_state)
+    import streamlit as st
+    confirm_delete = st.session_state.get('confirm_delete', False)
+    if not confirm_delete:
+        print(f"⛔ Attempted to delete scheduled post '{filename}' without explicit confirmation.")
+        return False
     try:
         db_path = get_db_path()
         conn = sqlite3.connect(str(db_path))
         cursor = conn.cursor()
-        
         cursor.execute('DELETE FROM scheduled_posts WHERE filename = ?', (filename,))
-        
         conn.commit()
         conn.close()
         return True
