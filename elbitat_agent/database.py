@@ -454,6 +454,9 @@ def save_email_contact(email: str, company_name: str = None, website: str = None
     """Save an email contact to the database."""
     try:
         db_path = get_db_path()
+        print(f"💾 Saving contact to: {db_path}")
+        print(f"   Email: {email}, Company: {company_name}, Status: {status}")
+
         conn = sqlite3.connect(str(db_path))
         cursor = conn.cursor()
 
@@ -463,25 +466,37 @@ def save_email_contact(email: str, company_name: str = None, website: str = None
 
         if existing:
             # Update existing contact, keep its status
+            print(f"   ℹ️ Updating existing contact (ID: {existing[0]})")
             cursor.execute('''
                 UPDATE email_contacts
                 SET company_name = ?, website = ?, country = ?, industry = ?,
                     source = ?, updated_at = ?
                 WHERE email = ?
             ''', (company_name, website, country, industry, source, datetime.now(), email))
+            rows_affected = cursor.rowcount
+            print(f"   ✓ Updated {rows_affected} row(s)")
         else:
             # Insert new contact with status
+            print(f"   ➕ Inserting new contact with status: {status}")
             cursor.execute('''
                 INSERT INTO email_contacts
                 (email, company_name, website, country, industry, source, status, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ''', (email, company_name, website, country, industry, source, status, datetime.now()))
+            rows_affected = cursor.rowcount
+            print(f"   ✓ Inserted {rows_affected} row(s), new ID: {cursor.lastrowid}")
 
         conn.commit()
+
+        # Verify the save
+        cursor.execute('SELECT COUNT(*) FROM email_contacts WHERE email = ?', (email,))
+        count = cursor.fetchone()[0]
+        print(f"   ✅ Verification: {count} contact(s) with email {email}")
+
         conn.close()
         return True
     except Exception as e:
-        print(f"Error saving email contact: {e}")
+        print(f"❌ Error saving email contact {email}: {e}")
         import traceback
         traceback.print_exc()
         return False
